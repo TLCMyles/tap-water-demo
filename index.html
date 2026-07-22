@@ -5,186 +5,355 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Tap Water — Vertical Slice</title>
 <style>
-  :root{--ink:#0d1b2a;--panel:#12263b;--panel2:#0f1f31;--acc:#4a90d9;--txt:#e8eef6;--mut:#9fb2c8;--good:#42b883;--warn:#e0a23c;--bad:#e05a4f;--bd:#264a6b;}
+  :root{--ink:#0d1b2a;--panel:#12263b;--panel2:#0f1f31;--acc:#4a90d9;--txt:#e8eef6;--mut:#9fb2c8;--good:#42b883;--warn:#e0a23c;--bad:#e05a4f;--bd:#264a6b;--gold:#e9c46a}
   *{box-sizing:border-box}
-  body{margin:0;background:#081320;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5}
-  .wrap{max-width:1100px;margin:0 auto;padding:16px}
-  h1{font-size:20px;margin:0 0 2px;letter-spacing:.3px}
-  .sub{color:var(--mut);font-size:12.5px;margin:0 0 12px}
-  .clock{float:right;text-align:right;font-size:12px;color:var(--mut)}
-  .clock b{display:block;color:var(--acc);font-size:16px}
+  body{margin:0;background:#070f1a;color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.55}
+  .wrap{max-width:1180px;margin:0 auto;padding:16px}
+  h1{font-size:20px;margin:0;letter-spacing:.3px}
+  .mut{color:var(--mut)} .sm{font-size:12px} .xs{font-size:11px}
+  button{font:inherit;font-size:12.5px;color:var(--txt);background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:8px 12px;cursor:pointer}
+  button:hover{border-color:var(--acc)} button:disabled{opacity:.35;cursor:not-allowed}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#04121f;font-weight:700}
+  button.gold{background:var(--gold);border-color:var(--gold);color:#241a04;font-weight:700}
   .card{background:var(--ink);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;margin-bottom:12px}
-  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  .mtr{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:7px 9px}
-  .mtr .lab{display:flex;justify-content:space-between;font-size:11px;color:var(--mut);margin-bottom:4px}
-  .mtr .lab b{color:var(--txt)}
-  .bar{height:6px;background:#0a1522;border-radius:4px;overflow:hidden}
-  .bar i{display:block;height:100%;border-radius:4px;transition:width .35s}
-  .tales{background:var(--panel2);border:1px dashed var(--acc);border-radius:10px;padding:9px 12px;font-size:12.5px;color:var(--mut)}
-  .tales b{color:var(--txt)}
-  .chip{display:inline-block;border:1px solid var(--bd);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--acc);margin:2px 3px 0 0}
-  .cols{display:grid;grid-template-columns:1.15fr .85fr;gap:12px}
-  .sect h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--acc)}
-  .person{border:1px solid var(--bd);border-radius:8px;padding:6px 9px;margin-bottom:6px;cursor:pointer;background:var(--panel2);font-size:12.5px}
-  .person.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
-  .person .nm{font-weight:700}
-  .person .meta{color:var(--mut);font-size:11px}
-  .feed{max-height:300px;overflow:auto;font-size:12px;line-height:1.5}
-  .feed div{padding:3px 0;border-bottom:1px solid #14283c}
-  .feed .t{color:var(--acc);font-variant-numeric:tabular-nums;font-size:11px}
-  .tag-conflict{color:var(--warn)} .tag-resolve{color:var(--good)} .tag-ber{color:var(--bad)} .tag-crime{color:var(--bad)} .tag-mimicry{color:#c88bff} .tag-quest{color:var(--acc)}
+
+  /* INTRO */
+  #intro{max-width:720px;margin:6vh auto;padding:0 18px}
+  #intro .eyebrow{color:var(--acc);letter-spacing:2px;font-size:12px;text-transform:uppercase}
+  #intro h1{font-size:34px;margin:6px 0 14px}
+  #intro p{font-size:16px;color:#d7e2ef;margin:0 0 14px}
+  #intro .drop{border-left:3px solid var(--acc);padding-left:14px;color:#c6d4e4;font-style:italic}
+  #intro .go{margin-top:22px;display:flex;gap:10px;align-items:center}
+
+  /* TOP STRIP */
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .clock b{color:var(--acc);font-size:16px;display:block}
+  .meters{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .m{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:5px 8px;min-width:96px}
+  .m .l{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut)}
+  .m .l b{color:var(--txt)}
+  .m .bar{height:5px;background:#0a1522;border-radius:3px;margin-top:3px;overflow:hidden}
+  .m .bar i{display:block;height:100%;transition:width .4s}
+  .tales{margin-top:8px;background:var(--panel2);border:1px dashed var(--acc);border-radius:9px;padding:7px 11px;font-size:12px;color:var(--mut)}
+  .tales b{color:var(--txt)} .chip{display:inline-block;border:1px solid var(--bd);border-radius:20px;padding:1px 8px;font-size:11px;color:var(--acc);margin:2px 3px 0 0}
+
+  /* OBJECTIVE BANNER */
+  .obj{background:linear-gradient(90deg,#13314a,#0f2233);border:1px solid var(--acc);border-radius:12px;padding:12px 16px;margin:12px 0;display:flex;gap:14px;align-items:center}
+  .obj .num{background:var(--acc);color:#04121f;font-weight:800;border-radius:8px;padding:6px 10px;font-size:13px;white-space:nowrap}
+  .obj .do{font-size:15px;font-weight:700}
+  .obj .why{color:var(--mut);font-size:12px;margin-top:2px}
+  .obj.free{border-color:var(--gold);background:linear-gradient(90deg,#2a2411,#141b12)}
+  .obj.free .num{background:var(--gold);color:#241a04}
+
+  /* MAIN GRID */
+  .cols{display:grid;grid-template-columns:1.25fr 1fr;gap:12px}
+  .sect h3{margin:0 0 8px;font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--acc)}
+  .where{font-size:17px;font-weight:700}
+  .stock{color:var(--mut);font-size:12px;margin-bottom:8px}
+
+  /* PEOPLE CARDS */
+  .people{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .pc{border:1px solid var(--bd);border-radius:9px;padding:7px 9px;cursor:pointer;background:var(--panel2)}
+  .pc:hover{border-color:var(--acc)}
+  .pc.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+  .pc .top{display:flex;justify-content:space-between;align-items:center}
+  .pc .nm{font-weight:700;font-size:13px}
+  .pc .ic{font-size:15px}
+  .pc .role{color:var(--acc);font-size:10.5px}
+  .pc .goal{color:var(--mut);font-size:11px;margin-top:2px}
+  .bgline{grid-column:1/3;color:var(--mut);font-size:12px;padding:6px 4px;border-top:1px dashed var(--bd)}
+
+  .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .travel{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .travel button{font-size:11.5px;padding:5px 8px}
+
+  /* LATEST / RESPONSE */
+  .latest{background:var(--panel2);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .latest .did{font-size:13px}
+  .latest .did b{color:var(--gold)}
+  .deltas{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+  .d{font-size:11px;border-radius:6px;padding:2px 7px;background:#0a1522;border:1px solid var(--bd)}
+  .d.up{color:var(--good)} .d.down{color:var(--bad)} .d.flat{color:var(--mut)}
   .q{border:1px solid var(--bd);border-left:3px solid var(--acc);border-radius:6px;padding:7px 10px;margin-bottom:6px;font-size:12.5px;background:var(--panel2)}
   .q .arch{color:var(--mut);font-size:11px}
-  .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  button{font:inherit;font-size:12.5px;color:var(--txt);background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:7px 11px;cursor:pointer}
-  button:hover{border-color:var(--acc)} button:disabled{opacity:.4;cursor:not-allowed}
-  button.tick{background:var(--acc);border-color:var(--acc);color:#04121f;font-weight:700}
-  .loc-btns button{font-size:11.5px;padding:5px 8px}
-  .toast{background:#10314a;border:1px solid var(--acc);border-radius:8px;padding:8px 11px;margin-bottom:10px;font-size:13px}
-  .where{font-size:15px;font-weight:700;margin-bottom:2px}
-  .stock{color:var(--mut);font-size:12px}
-  .io{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-  a.dl{color:var(--acc)}
+  .feed{max-height:220px;overflow:auto;font-size:12px}
+  .feed div{padding:3px 0;border-bottom:1px solid #14283c}
+  .feed .t{color:var(--acc);font-size:11px;font-variant-numeric:tabular-nums}
+  .tag-conflict{color:var(--warn)} .tag-resolve{color:var(--good)} .tag-ber{color:var(--bad)} .tag-crime{color:var(--bad)} .tag-mimicry{color:#c88bff} .tag-quest{color:var(--acc)} .tag-econ{color:var(--mut)}
+
+  /* LESSON MODAL */
+  .scrim{position:fixed;inset:0;background:rgba(4,10,18,.72);display:none;align-items:center;justify-content:center;z-index:50;padding:18px}
+  .lesson{max-width:560px;background:var(--ink);border:1px solid var(--gold);border-radius:14px;padding:20px 22px}
+  .lesson .h{color:var(--gold);font-weight:800;letter-spacing:1px;font-size:12px;text-transform:uppercase}
+  .lesson h2{margin:6px 0 10px;font-size:19px}
+  .lesson p{color:#d7e2ef;font-size:14px;margin:0 0 10px}
+  .lesson .why{color:var(--mut);font-size:12.5px;border-left:3px solid var(--acc);padding-left:12px;margin:12px 0}
+  .io{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="card">
-    <div class="clock"><b id="clock">Day 1 · 06:00</b>1h internal tick · seeded &amp; deterministic</div>
-    <h1>TAP WATER — Vertical Slice</h1>
-    <p class="sub">Six blocks · 250 simulated lives · you are <b style="color:var(--txt)">Tales</b>. No quest markers — situations emerge, and you discover them. The block lives whether or not you act.</p>
-    <div id="toast" class="toast" style="display:none"></div>
-    <div class="grid" id="meters"></div>
-    <div style="height:8px"></div>
-    <div class="tales" id="talesbar"></div>
+
+  <!-- ===================== INTRO ===================== -->
+  <div id="intro">
+    <div class="eyebrow">Tap Water — Vertical Slice</div>
+    <h1>Six Blocks</h1>
+    <p>Los Angeles County is sealed. The water that runs from every tap changed some people and took the old world from all of them. You are <b>Tales</b> — thirty-six, unremarkable, a former security guard — and, since the outbreak, able to become almost anyone you touch.</p>
+    <p>You've come to one small neighborhood. Six streets. Two hundred and fifty people who were living their lives long before you arrived, and will keep living them whether or not you do anything at all.</p>
+    <p class="drop">There are no quest markers here. No one is waiting for you. If something matters on these blocks, you'll have to notice it — by watching, by talking, by paying attention. What you do (and who you choose to be) is the whole game.</p>
+    <div class="go">
+      <button class="primary" onclick="begin()">Step onto the block ▸</button>
+      <button onclick="begin(true)">Skip the tutorial</button>
+    </div>
+    <p class="mut sm" style="margin-top:18px">A living-simulation demo. Everything you're about to see — the shortages, the rumors, the people's choices, the story that results — emerges from systems, not a script. Play it twice and it won't go the same way.</p>
   </div>
 
-  <div class="cols">
-    <div class="card sect">
-      <h3>Where you are</h3>
-      <div class="where" id="where">—</div>
-      <div class="stock" id="stock"></div>
-      <div style="margin:8px 0 4px;font-size:11px;color:var(--mut)">People here (click to select):</div>
-      <div id="people"></div>
-      <div class="acts" id="acts"></div>
-      <div style="margin-top:10px;font-size:11px;color:var(--mut)">Travel:</div>
-      <div class="acts loc-btns" id="travel"></div>
+  <!-- ===================== GAME ===================== -->
+  <div id="game" style="display:none">
+    <div class="card">
+      <div class="topbar">
+        <div><h1>Six Blocks <span class="mut sm">· you are Tales</span></h1><div class="clock mut sm" id="clock"></div></div>
+        <div style="text-align:right"><button class="xs" onclick="restartIntro()">↺ intro</button> <button class="xs" onclick="newWorld(777)">seed 777</button> <button class="xs" onclick="newWorld()">new seed</button></div>
+      </div>
+      <div class="meters" id="meters"></div>
+      <div class="tales" id="talesbar"></div>
     </div>
 
-    <div class="card sect">
-      <h3>Situations you've noticed</h3>
-      <div id="quests"><div style="color:var(--mut);font-size:12px">Nothing yet. Observe and talk to people to piece situations together.</div></div>
-      <h3 style="margin-top:14px">The block — story feed</h3>
-      <div class="feed" id="feed"></div>
+    <div class="obj" id="objbar"></div>
+
+    <div class="cols">
+      <!-- LEFT: place, people, actions -->
+      <div class="card sect">
+        <h3>Where you are</h3>
+        <div class="where" id="where">—</div>
+        <div class="stock" id="stock"></div>
+        <div class="xs mut" style="margin-bottom:6px">People here — click a neighbor to select them:</div>
+        <div class="people" id="people"></div>
+        <div class="xs mut" style="margin-top:12px">Actions:</div>
+        <div class="acts" id="acts"></div>
+        <div class="xs mut" style="margin-top:10px">Travel to:</div>
+        <div class="travel" id="travel"></div>
+      </div>
+
+      <!-- RIGHT: your action + the world's response, always visible -->
+      <div class="card sect">
+        <h3>⚡ Your last action &amp; the world's response</h3>
+        <div class="latest" id="latest"><div class="did mut">Take an action — you'll see exactly what changes here.</div></div>
+        <h3>Situations you've noticed</h3>
+        <div id="quests"></div>
+        <h3 style="margin-top:12px">The block — what's happening</h3>
+        <div class="feed" id="feed"></div>
+        <div class="io" style="margin-top:10px">
+          <button class="xs" onclick="saveLocal()">💾 Save</button>
+          <button class="xs" onclick="loadLocal()">📂 Load</button>
+          <button class="xs" onclick="exportJSON()">⬇ Export run</button>
+          <label class="chip" style="cursor:pointer">⬆ Import<input id="imp" type="file" accept="application/json" style="display:none" onchange="importJSON(event)"></label>
+        </div>
+      </div>
     </div>
   </div>
+</div>
 
-  <div class="card">
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--acc);margin:0 0 6px">Persistent world state</h3>
-    <div class="io">
-      <button onclick="saveLocal()">💾 Save (browser)</button>
-      <button onclick="loadLocal()">📂 Load (browser)</button>
-      <button onclick="exportJSON()">⬇ Export save (.json)</button>
-      <label class="chip" style="cursor:pointer">⬆ Import save<input id="imp" type="file" accept="application/json" style="display:none" onchange="importJSON(event)"></label>
-      <button onclick="newWorld()">↻ New world (new seed)</button>
-      <button onclick="newWorld(777)">↻ Seed 777 (compare with a friend)</button>
-    </div>
-    <div style="color:var(--mut);font-size:11px;margin-top:6px">Two players on the same seed who act differently will build different stories — that's the test. Export your save and compare.</div>
+<!-- LESSON MODAL -->
+<div class="scrim" id="scrim">
+  <div class="lesson">
+    <div class="h">💡 What that meant</div>
+    <h2 id="lesTitle"></h2>
+    <div id="lesBody"></div>
+    <div class="why" id="lesWhy"></div>
+    <div class="io"><button class="primary" id="lesNext" onclick="closeLesson()">Continue ▸</button></div>
   </div>
 </div>
 
 <script src="sim.js"></script>
 <script>
-var TW = window.TapWater;
-var W = null, selectedId = null, revealModels = false;
-var POSTURE = ['Observe','Monitor','Suppress','Contain','Military'];
+var TW=window.TapWater, W=null, selectedId=null, screen='intro';
+var last={verb:null,msg:'',deltas:[]};
+var tut=0, tutActive=true, milestones={};
+var POSTURE=['Observe','Monitor','Suppress','Contain','Military'];
+var ROLE={community_builder:['🤝','Community organizer'],crime_boss:['💰','Crew boss'],pastor:['⛪','Pastor'],hidden_changed:['🌿','Care worker'],ber_agent:['🛡️','BER agent'],teacher:['📚','Teacher'],smuggler:['📦','Fixer / driver'],shopkeeper:['🛒','Shopkeeper'],resident:['🧍','Resident']};
 
-function newWorld(seed){ W = TW.createWorld(seed==null?undefined:seed); selectedId=null; toast('A new block wakes up. Seed '+W.seed+'.'); render(); }
-function toast(msg){ var t=document.getElementById('toast'); if(!msg){t.style.display='none';return;} t.style.display='block'; t.textContent=msg; }
+/* ---------- TUTORIAL: do this -> here's what it meant ---------- */
+var TUT=[
+ {do:'Press “👁 Observe” to read the block.',why:'Observing is free and costs no time.',
+  ok:function(c){return c.verb==='observe';},
+  title:'Perception is the core verb',
+  body:'You just <b>looked</b> before you acted. In Tap Water the moment-to-moment loop is <i>noticing</i>, not fighting — you can see what each person is trying to do right now (their goal).',
+  cw:'Every person runs the same seven-question decision model. They act on their own needs, not yours. Reading them is how you understand the block.'},
 
+ {do:'Travel to the Corner Market (use the Travel buttons).',why:'The block is a real place; move through it.',
+  ok:function(c){return c.verb==='move'&&c.locId==='market';},
+  title:'The block is a place, and time passes',
+  body:'Walking took an hour of in-game time. The clock moved, and so did 250 other lives — <b>the world advances whether or not you act</b>.',
+  cw:'Scarcity lives at places like the market. Watch the “food stock” here over time; when it runs short, something will happen.'},
+
+ {do:'Press “👁 Observe” again, here at the market.',why:'Look for the shortage forming.',
+  ok:function(c){return c.verb==='observe'&&c.locId==='market';},
+  title:'Conflicts emerge — you discover them',
+  body:'Notice the thin shelves and the people looking for food. Nothing told you “quest available.” As food runs short and a crew starts taxing what arrives, a <b>conflict will generate itself</b> — and you’ll find it by paying attention.',
+  cw:'This is the whole thesis: situations come from the simulation (a real shortage, a real crew, real hungry people), never from a designer placing a marker. Keep an eye on “Situations you’ve noticed.”'},
+
+ {do:'Travel to the Community Garden.',why:'Somewhere you can actually help.',
+  ok:function(c){return c.verb==='move'&&c.locId==='garden';},
+  title:'Places have purpose',
+  body:'The garden is where the block feeds itself. It’s one of the spots where a single person showing up actually changes things.',
+  cw:'Cohesion hubs (garden, council, church) are where mutual aid happens — the counter-force to scarcity.'},
+
+ {do:'Press “🤝 Help here” in the garden.',why:'Contribute — and watch the response panel.',
+  ok:function(c){return c.verb==='help'&&c.locId==='garden';},
+  title:'Your reputation is earned by behavior',
+  body:'Look right: <b>Cohesion and Morale went up, and your Local Reputation rose.</b> You didn’t buy standing or win a fight — you showed up and did the work.',
+  cw:'Reputation here is local and behavioral. Help these blocks and they’ll trust you; ignore them and they won’t. There is no global “fame” — a hero on one street is a stranger on the next.'},
+
+ {do:'Select a neighbor (click their card), then press “💬 Talk”.',why:'Build trust; learn what they know.',
+  ok:function(c){return c.verb==='talk';},
+  title:'Relationships and knowledge',
+  body:'Talking builds <b>trust</b> and passes you what that person <b>knows</b> — including rumors that may be true or false. Some people are hiding things you’ll only hear once they trust you.',
+  cw:'Trust is the rarest currency in the game. A few of these residents are secretly Changed; earn enough trust and one might tell you.'},
+
+ {do:'Travel to the BER Checkpoint.',why:'See the other kind of power on the block.',
+  ok:function(c){return c.verb==='move'&&c.locId==='checkpoint';},
+  title:'The state is here too',
+  body:'BER holds the checkpoint. It’s the visible edge of a government that decides who leaves and who’s a “threat.”',
+  cw:'Your own extraordinary ability makes you exactly what BER watches for. Being seen doing unusual things here has a cost.'},
+
+ {do:'Press “📷 Photograph”.',why:'Photography is your signature tool.',
+  ok:function(c){return c.verb==='photo';},
+  title:'Photography is information — and identity',
+  body:'A photograph is a true, spreadable piece of the world. It can <b>cool a false rumor</b> by giving people something real to hold — but shooting at a checkpoint <b>raises BER’s file on you</b>.',
+  cw:'Photography is how Tales touches the world. It’s the game’s central metaphor: perspective is identity. What you choose to document shapes what the block believes — and how the state sees you.'},
+
+ {do:'Press “⏭ Wait 1h” and watch the feed.',why:'Prove the world doesn’t need you.',
+  ok:function(c){return c.verb==='wait';},
+  title:'The world does not wait for you',
+  body:'You did nothing — and the block still moved: people acted, needs shifted, maybe a rumor spread or BER re-postured. <b>The simulation runs on its own clock.</b>',
+  cw:'This is why two players get different stories: the world is always in motion, and your choices only tip it. You’re one influential person, not the center of the universe.'},
+];
+var FREE={do:'Now it’s yours. Try to lift the block’s Morale — or find the hidden Changed, copy them (🧬), and quietly protect the water. Then reload seed 777 and play differently.',
+  why:'Free play. Watch “Situations you’ve noticed” fill in, and see what story you leave behind.'};
+
+/* milestone lessons (fire once, on emergent moments) */
+var MILE={
+ copy:{title:'Mimicry always costs',body:'You copied someone by touch — gaining their face, skills, and memories, and (if they were Changed) their power. But look: <b>Energy dropped, Identity Strain rose, and you now carry a permanent Imprint.</b>',cw:'Power here is never free. Every self you take on presses on your own — collect too many and you risk losing track of who Tales is. That tension is the point: he can be anyone, and his real struggle is being himself.'},
+ discover:{title:'You found a story no one handed you',body:'A situation just appeared in “Situations you’ve noticed” — because you learned enough about it by being here, not because a marker spawned.',cw:'You can ignore it, investigate it, help one side, or exploit it. There’s rarely a correct answer, and the block will remember what you chose.'},
+};
+
+/* ---------- lifecycle ---------- */
+function begin(skip){ if(skip)tutActive=false; newWorld(777); document.getElementById('intro').style.display='none'; document.getElementById('game').style.display='block'; screen='play'; render(); }
+function restartIntro(){ document.getElementById('game').style.display='none'; document.getElementById('intro').style.display='block'; screen='intro'; }
+function newWorld(seed){ W=TW.createWorld(seed==null?undefined:seed); selectedId=null; tut=0; milestones={}; last={verb:null,msg:'The block wakes up. Seed '+W.seed+'.',deltas:[]}; if(screen==='play')render(); }
+
+/* ---------- snapshot / deltas ---------- */
+function snap(){ var d=W.district,p=W.player; return {food:d.food,safeWater:d.safeWater,morale:d.morale,cohesion:d.cohesion,crime:d.crime,berThreat:d.berThreat,rep:p.repDistrict,energy:p.energy,strain:p.strain,berFile:p.berThreatTales,imprints:p.imprints.length}; }
+var DLAB={food:'Food',safeWater:'Safe water',morale:'Morale',cohesion:'Cohesion',crime:'Crime',berThreat:'BER threat',rep:'Your reputation',energy:'Energy',strain:'Identity strain',berFile:'BER file on you',imprints:'Imprints'};
+var DINV={crime:1,berThreat:1,strain:1,berFile:1}; // up is bad
+function computeDeltas(a,b){ var out=[]; for(var k in a){ var diff=Math.round(b[k]-a[k]); if(diff===0)continue; var bad=DINV[k]?diff>0:diff<0; out.push({label:DLAB[k],diff:diff,cls:bad?'down':'up'}); } return out; }
+
+/* ---------- action wrapper ---------- */
+function act(verb,fn){
+  var before=snap();
+  var r=fn();
+  if(r&&r.free){ last={verb:verb,msg:r.msg||'',deltas:[],obs:r};} // observe: no time/deltas
+  else if(r){ var after=snap(); last={verb:verb,msg:r.msg||'',deltas:computeDeltas(before,after)}; }
+  // milestones
+  if(verb==='copy'&&r&&r.ok&&!milestones.copy){ milestones.copy=1; showLesson(MILE.copy); }
+  checkTutorial({verb:verb,locId:W.player.locId,r:r});
+  render();
+}
+function checkTutorial(c){
+  if(!tutActive) { maybeDiscover(); return; }
+  if(tut>=TUT.length){ maybeDiscover(); return; }
+  if(TUT[tut].ok(c)){ var step=TUT[tut]; tut++; showLesson({title:step.title,body:step.body,cw:step.cw}); }
+  maybeDiscover();
+}
+function maybeDiscover(){ if(!milestones.discover && W.quests.some(function(q){return q.discovered;})){ milestones.discover=1; showLesson(MILE.discover); } }
+
+/* ---------- lesson modal ---------- */
+function showLesson(o){ document.getElementById('lesTitle').textContent=o.title; document.getElementById('lesBody').innerHTML=o.body; document.getElementById('lesWhy').innerHTML='<b>Why it matters:</b> '+o.cw; document.getElementById('scrim').style.display='flex'; }
+function closeLesson(){ document.getElementById('scrim').style.display='none'; render(); }
+
+/* ---------- render ---------- */
 function barColor(k,v){ var inv=(k==='crime'||k==='berThreat'); var g=inv?100-v:v; return g>60?'var(--good)':g>35?'var(--warn)':'var(--bad)'; }
-function meter(k,label,v){ v=Math.round(v); return '<div class="mtr"><div class="lab"><span>'+label+'</span><b>'+v+'</b></div><div class="bar"><i style="width:'+v+'%;background:'+barColor(k,v)+'"></i></div></div>'; }
+function meter(k,label,v){ v=Math.round(v); return '<div class="m"><div class="l"><span>'+label+'</span><b>'+v+'</b></div><div class="bar"><i style="width:'+v+'%;background:'+barColor(k,v)+'"></i></div></div>'; }
+function goalText(p){ return ({live:'going about their day',find_food:'looking for food',seek_safety:'keeping their head down',find_comfort:'stressed, seeking comfort',help_others:'helping neighbors',seize_opportunity:'looking for an angle'})[p.goal]||'living'; }
 
 function render(){
-  var d=W.district, pl=W.player;
-  document.getElementById('clock').textContent='Day '+W.day+' · '+String(W.hour).padStart(2,'0')+':00';
-  document.getElementById('meters').innerHTML =
-    meter('food','Food',d.food)+meter('safeWater','Safe water',d.safeWater)+meter('morale','Morale',d.morale)+meter('cohesion','Cohesion',d.cohesion)+
-    meter('crime','Crime pressure',d.crime)+meter('berThreat','BER threat',d.berThreat)+
-    '<div class="mtr"><div class="lab"><span>BER posture</span><b style="color:'+(d.berPosture>=2?'var(--bad)':d.berPosture==1?'var(--warn)':'var(--good)')+'">'+POSTURE[d.berPosture]+'</b></div><div class="bar"><i style="width:'+Math.round(d.berThreat)+'%;background:'+(d.berPosture>=2?'var(--bad)':'var(--warn)')+'"></i></div></div>'+
-    '<div class="mtr"><div class="lab"><span>Population</span><b>'+W.people.length+'</b></div><div class="bar"><i style="width:100%;background:var(--acc)"></i></div></div>';
-  var worn = pl.form ? (W.byId[pl.form]? W.byId[pl.form].name : 'someone') : 'yourself';
-  document.getElementById('talesbar').innerHTML =
-    'TALES — ENERGY <b>'+Math.round(pl.energy)+'</b> · IDENTITY STRAIN <b style="color:'+(pl.strain>60?'var(--bad)':'var(--txt)')+'">'+Math.round(pl.strain)+'</b> · LOCAL REP <b>'+(pl.repDistrict>0?'+':'')+Math.round(pl.repDistrict)+'</b> · BER FILE ON YOU <b style="color:'+(pl.berThreatTales>50?'var(--bad)':'var(--txt)')+'">'+Math.round(pl.berThreatTales)+'</b> · WEARING <b>'+worn+'</b>'+
-    '<div style="margin-top:5px">Imprints: '+(pl.imprints.length? pl.imprints.map(function(id){return '<span class="chip">'+(W.byId[id]?W.byId[id].name:id)+'</span>';}).join('') : '<i>none</i>')+' · Photos taken: '+pl.photos.length+'</div>';
+  if(screen!=='play')return;
+  var d=W.district,pl=W.player;
+  document.getElementById('clock').innerHTML='<b>Day '+W.day+' · '+String(W.hour).padStart(2,'0')+':00</b> six blocks · 250 lives';
+  document.getElementById('meters').innerHTML=meter('food','Food',d.food)+meter('safeWater','Safe water',d.safeWater)+meter('morale','Morale',d.morale)+meter('cohesion','Cohesion',d.cohesion)+meter('crime','Crime',d.crime)+meter('berThreat','BER threat',d.berThreat)+'<div class="m"><div class="l"><span>BER posture</span><b style="color:'+(d.berPosture>=2?'var(--bad)':d.berPosture==1?'var(--warn)':'var(--good)')+'">'+POSTURE[d.berPosture]+'</b></div><div class="bar"><i style="width:'+Math.round(d.berThreat)+'%;background:var(--warn)"></i></div></div>';
+  var worn=pl.form?(W.byId[pl.form]?W.byId[pl.form].name:'someone'):'yourself';
+  document.getElementById('talesbar').innerHTML='TALES · Energy <b>'+Math.round(pl.energy)+'</b> · Identity strain <b style="color:'+(pl.strain>60?'var(--bad)':'var(--txt)')+'">'+Math.round(pl.strain)+'</b> · Local reputation <b>'+(pl.repDistrict>0?'+':'')+Math.round(pl.repDistrict)+'</b> · BER file <b style="color:'+(pl.berThreatTales>50?'var(--bad)':'var(--txt)')+'">'+Math.round(pl.berThreatTales)+'</b> · Wearing <b>'+worn+'</b> · Imprints '+(pl.imprints.length?pl.imprints.map(function(id){return '<span class="chip">'+(W.byId[id]?W.byId[id].name.split(' ')[0]:id)+'</span>';}).join(''):'<span class="mut">none</span>');
 
+  // objective banner
+  var ob=document.getElementById('objbar');
+  if(tutActive && tut<TUT.length){ ob.className='obj'; ob.innerHTML='<div class="num">Step '+(tut+1)+' / '+TUT.length+'</div><div><div class="do">▶ '+TUT[tut].do+'</div><div class="why">'+TUT[tut].why+'</div></div>'; }
+  else { ob.className='obj free'; ob.innerHTML='<div class="num">FREE PLAY</div><div><div class="do">'+FREE.do+'</div><div class="why">'+FREE.why+'</div></div>'; }
+
+  // location + people
   var loc=W.locations[pl.locId];
   document.getElementById('where').textContent=loc.name;
-  var st=[]; if(loc.stock!=null)st.push('food stock: '+Math.round(loc.stock)); if(loc.produce!=null)st.push('garden produce: '+Math.round(loc.produce)); if(loc.kind==='ber')st.push('checkpoint — being seen here raises your BER file'); if(loc.kind==='safehouse')st.push('safe house — clean water');
+  var st=[]; if(loc.stock!=null)st.push('food stock: '+Math.round(loc.stock)); if(loc.produce!=null)st.push('garden produce: '+Math.round(loc.produce)); if(loc.kind==='ber')st.push('⚠ being seen here raises your BER file'); if(loc.kind==='safehouse')st.push('clean water here');
   document.getElementById('stock').textContent=st.join(' · ');
 
-  var present = loc.present.map(function(id){return W.byId[id];}).filter(Boolean).slice(0,14);
-  document.getElementById('people').innerHTML = present.length? present.map(function(p){
-    var goal = revealModels ? (' · '+goalText(p)+' · trust-in-you '+Math.round(p.trustTales)) : '';
-    var tag = (p.persistent?' · '+(p.note||p.role):'') ;
-    return '<div class="person'+(selectedId===p.id?' sel':'')+'" data-id="'+p.id+'"><span class="nm">'+p.name+'</span> <span class="meta">('+p.occupation+')'+tag+goal+'</span></div>';
-  }).join('') : '<div style="color:var(--mut)">No one here right now.</div>';
+  var present=loc.present.map(function(id){return W.byId[id];}).filter(Boolean);
+  var persistent=present.filter(function(p){return p.persistent;}).slice(0,6);
+  var bg=present.length-present.filter(function(p){return p.persistent;}).length;
+  var html=persistent.map(function(p){ var r=ROLE[p.role]||ROLE.resident; return '<div class="pc'+(selectedId===p.id?' sel':'')+'" data-id="'+p.id+'"><div class="top"><span class="nm">'+p.name+'</span><span class="ic">'+r[0]+'</span></div><div class="role">'+r[1]+(p.trustTales>25&&p.hidden?' · trusts you':'')+'</div><div class="goal">'+goalText(p)+'</div></div>'; }).join('');
+  if(bg>0) html+='<div class="bgline">+ '+bg+' neighbors going about their day '+(persistent.length?'':' (no one notable here right now)')+'</div>';
+  if(!present.length) html='<div class="bgline" style="border:none">The street is empty right now.</div>';
+  document.getElementById('people').innerHTML=html;
 
   // actions
-  var a=[]; var sel = selectedId? W.byId[selectedId] : null; var selHere = sel && sel.locId===pl.locId;
-  a.push(btn('observe','👁 Observe (free)'));
-  a.push(btn('talk','💬 Talk'+(selHere?' to '+sel.name.split(' ')[0]:''), !selHere));
-  a.push(btn('photo','📷 Photograph'+(selHere?' '+sel.name.split(' ')[0]:' here')));
-  a.push(btn('copy','🧬 Copy'+(selHere?' '+sel.name.split(' ')[0]:''), !selHere));
-  if(sel && pl.imprints.indexOf(selectedId)>=0) a.push(btn('wear','🪞 Wear '+sel.name.split(' ')[0]));
-  if(pl.form) a.push(btn('revert','↩ Revert to self'));
-  a.push(btn('help','🤝 Help here'));
-  if(pl.imprints.some(function(id){return W.byId[id]&&W.byId[id].ability==='sense_contamination';})) a.push(btn('sense','💧 Use water-sense'));
-  a.push(btn('wait','⏭ Wait 1h','','tick'));
+  var sel=selectedId?W.byId[selectedId]:null, selHere=sel&&sel.locId===pl.locId;
+  var a=[];
+  a.push(b('observe','👁 Observe','','','free'));
+  a.push(b('help','🤝 Help here'));
+  a.push(b('photo','📷 Photograph'));
+  a.push(b('talk','💬 Talk'+(selHere?' to '+sel.name.split(' ')[0]:''),!selHere));
+  a.push(b('copy','🧬 Copy'+(selHere?' '+sel.name.split(' ')[0]:''),!selHere));
+  if(sel&&pl.imprints.indexOf(selectedId)>=0)a.push(b('wear','🪞 Wear '+sel.name.split(' ')[0]));
+  if(pl.form)a.push(b('revert','↩ Be yourself'));
+  if(pl.imprints.some(function(id){return W.byId[id]&&W.byId[id].ability==='sense_contamination';}))a.push(b('sense','💧 Use water-sense'));
+  a.push(b('wait','⏭ Wait 1h','','primary'));
   document.getElementById('acts').innerHTML=a.join('');
+  document.getElementById('travel').innerHTML=TW.LOC_DEFS.map(function(l){return '<button data-move="'+l.id+'"'+(l.id===pl.locId?' disabled':'')+'>'+l.name+'</button>';}).join('');
 
-  document.getElementById('travel').innerHTML = TW.LOC_DEFS.map(function(l){ return '<button data-move="'+l.id+'"'+(l.id===pl.locId?' disabled':'')+'>'+l.name+'</button>'; }).join('');
+  // latest action + deltas
+  var lat=document.getElementById('latest');
+  if(last.obs){ var ppl=(TW.coLocated(W).slice(0,6).map(function(p){return p.name.split(' ')[0]+' — '+goalText(p);})); lat.innerHTML='<div class="did">👁 <b>You observe the '+loc.name+'.</b></div><div class="xs mut" style="margin-top:5px">'+(ppl.length?ppl.join(' · '):'No one here to read.')+'</div>'; }
+  else { var dl=last.deltas.length?last.deltas.map(function(x){return '<span class="d '+x.cls+'">'+x.label+' '+(x.diff>0?'+':'')+x.diff+'</span>';}).join(''):'<span class="d flat">no measurable change</span>'; lat.innerHTML='<div class="did">'+(last.msg||'—')+'</div><div class="deltas">'+dl+'</div>'; }
 
-  // quests (only discovered)
-  var qs = W.quests.filter(function(q){return q.discovered;});
-  document.getElementById('quests').innerHTML = qs.length? qs.map(function(q){
-    var c=W.conflicts.find(function(x){return x.id===q.conflictId;});
-    return '<div class="q"><b>'+q.title+'</b><div class="arch">'+q.archetype+' · '+(q.state)+(c?' · escalation '+c.escalation+'/4':'')+'</div></div>';
-  }).join('') : '<div style="color:var(--mut);font-size:12px">Nothing yet. Observe and talk to people to piece situations together.</div>';
+  // situations
+  var qs=W.quests.filter(function(q){return q.discovered;});
+  document.getElementById('quests').innerHTML=qs.length?qs.map(function(q){var c=W.conflicts.find(function(x){return x.id===q.conflictId;});return '<div class="q"><b>'+q.title+'</b><div class="arch">'+q.archetype+' · '+q.state+(c?' · escalation '+c.escalation+'/4':'')+'</div></div>';}).join(''):'<div class="mut sm">Nothing yet. Observe and talk to people; situations appear here as you learn about them.</div>';
 
   // feed
-  document.getElementById('feed').innerHTML = W.storyLog.slice(0,60).map(function(e){
-    return '<div><span class="t">D'+e.day+' '+String(e.hour).padStart(2,'0')+':00</span> <span class="tag-'+(e.tag||'')+'">'+e.text+'</span></div>';
-  }).join('');
+  document.getElementById('feed').innerHTML=W.storyLog.slice(0,50).map(function(e){return '<div><span class="t">D'+e.day+' '+String(e.hour).padStart(2,'0')+':00</span> <span class="tag-'+(e.tag||'')+'">'+e.text+'</span></div>';}).join('');
 }
-function btn(act,label,disabled,cls){ return '<button data-act="'+act+'"'+(cls?' class="'+cls+'"':'')+(disabled?' disabled':'')+'>'+label+'</button>'; }
-function goalText(p){ return ({live:'going about their day',find_food:'looking for food',seek_safety:'keeping their head down',find_comfort:'stressed',help_others:'helping neighbors',seize_opportunity:'looking for an angle'})[p.goal]||'living'; }
+function b(act,label,disabled,cls){ return '<button data-act="'+act+'"'+(cls?' class="'+cls+'"':'')+(disabled?' disabled':'')+'>'+label+'</button>'; }
 
-document.addEventListener('click', function(e){
+/* ---------- input ---------- */
+document.addEventListener('click',function(e){
   var per=e.target.closest('[data-id]'); if(per){ selectedId=per.getAttribute('data-id'); render(); return; }
-  var mv=e.target.closest('[data-move]'); if(mv){ var r=TW.Player.move(W,mv.getAttribute('data-move')); toast(r.msg); render(); return; }
-  var b=e.target.closest('[data-act]'); if(!b) return;
-  var act=b.getAttribute('data-act'), P=TW.Player, r;
-  if(act==='observe'){ revealModels=!revealModels; toast(revealModels?'Reading the block — decision models revealed.':'Observation off.'); render(); return; }
-  if(act==='talk') r=P.talk(W,selectedId);
-  else if(act==='photo') r=P.photograph(W,selectedId);
-  else if(act==='copy') r=P.copy(W,selectedId);
-  else if(act==='wear') r=P.wear(W,selectedId);
-  else if(act==='revert') r=P.revert(W);
-  else if(act==='help') r=P.help(W);
-  else if(act==='sense') r=P.useAbility(W);
-  else if(act==='wait') r=P.wait(W,1);
-  if(r) toast(r.msg);
-  render();
+  var mv=e.target.closest('[data-move]'); if(mv){ var id=mv.getAttribute('data-move'); act('move',function(){return TW.Player.move(W,id);}); return; }
+  var bt=e.target.closest('[data-act]'); if(!bt)return; var a=bt.getAttribute('data-act'),P=TW.Player;
+  if(a==='observe') act('observe',function(){return P.observe(W);});
+  else if(a==='help') act('help',function(){return P.help(W);});
+  else if(a==='photo') act('photo',function(){return P.photograph(W,selectedId&&W.byId[selectedId]&&W.byId[selectedId].locId===W.player.locId?selectedId:null);});
+  else if(a==='talk') act('talk',function(){return P.talk(W,selectedId);});
+  else if(a==='copy') act('copy',function(){return P.copy(W,selectedId);});
+  else if(a==='wear') act('wear',function(){return P.wear(W,selectedId);});
+  else if(a==='revert') act('revert',function(){return P.revert(W);});
+  else if(a==='sense') act('sense',function(){return P.useAbility(W);});
+  else if(a==='wait') act('wait',function(){return P.wait(W,1);});
 });
 
-// save/load
-function saveLocal(){ try{ localStorage.setItem('tapwater_save', TW.serialize(W)); toast('Saved to this browser.'); }catch(e){ toast('Browser save unavailable — use Export.'); } }
-function loadLocal(){ try{ var s=localStorage.getItem('tapwater_save'); if(!s){toast('No browser save found.');return;} W=TW.deserialize(s); selectedId=null; toast('Loaded from browser.'); render(); }catch(e){ toast('Load failed.'); } }
-function exportJSON(){ var blob=new Blob([TW.serialize(W)],{type:'application/json'}); var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tapwater_save_seed'+W.seed+'_day'+W.day+'.json'; a.click(); toast('Save exported.'); }
-function importJSON(ev){ var f=ev.target.files[0]; if(!f)return; var rd=new FileReader(); rd.onload=function(){ try{ W=TW.deserialize(rd.result); selectedId=null; toast('Save imported.'); render(); }catch(e){ toast('Import failed — invalid file.'); } }; rd.readAsText(f); }
-
-newWorld();
+/* ---------- save/load ---------- */
+function saveLocal(){ try{localStorage.setItem('tapwater_save',TW.serialize(W));last.msg='Saved to this browser.';render();}catch(e){} }
+function loadLocal(){ try{var s=localStorage.getItem('tapwater_save');if(!s)return;W=TW.deserialize(s);selectedId=null;last={verb:null,msg:'Loaded.',deltas:[]};render();}catch(e){} }
+function exportJSON(){ var b=new Blob([TW.serialize(W)],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='tapwater_seed'+W.seed+'_day'+W.day+'.json';a.click(); }
+function importJSON(ev){ var f=ev.target.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){try{W=TW.deserialize(rd.result);selectedId=null;last={verb:null,msg:'Run imported.',deltas:[]};render();}catch(e){}};rd.readAsText(f); }
 </script>
 </body>
 </html>
