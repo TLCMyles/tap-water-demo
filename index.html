@@ -10,7 +10,7 @@
   html,body{margin:0}
   body{background:var(--bg);color:var(--txt);font-family:Georgia,'Iowan Old Style',"Times New Roman",serif;font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased}
   .ui{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  .reader{max-width:680px;margin:0 auto;padding:26px 20px 190px}
+  .reader{max-width:680px;margin:0 auto;padding:26px 20px 240px}
   .mut{color:var(--mut)} .soft{color:var(--soft)}
   button{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:14px;color:var(--txt);background:var(--panel);border:1px solid var(--bd);border-radius:9px;padding:9px 14px;cursor:pointer}
   button:hover{border-color:var(--acc)} button:disabled{opacity:.32;cursor:not-allowed}
@@ -48,7 +48,7 @@
   #stream .meanwhile b{color:var(--acc);font-style:normal}
 
   /* CONTROL BAR */
-  .bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(10,15,22,0) 0%,var(--bg) 22%);padding:26px 16px 16px}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(10,15,22,0) 0%,var(--bg) 18%);padding:22px 16px 14px;max-height:56vh;overflow-y:auto}
   .barin{max-width:680px;margin:0 auto;font-family:-apple-system,sans-serif}
   .guide{font-size:13.5px;color:var(--gold);margin-bottom:9px}
   .guide .step{color:var(--mut);font-size:11.5px;letter-spacing:.5px;text-transform:uppercase;margin-right:6px}
@@ -135,7 +135,9 @@
 
 <script src="sim.js"></script>
 <script>
-var TW=window.TapWater, W=null, screen='intro', focusId=null, tut=0, tutOn=true, mile={}, showNums=false, talking=false, sitsOpen=true, showRoster=false, battleShown=0;
+var TW=window.TapWater, W=null, screen='intro', focusId=null, tut=0, tutOn=true, mile={}, showNums=false, talking=false, sitsOpen=false, showRoster=false, battleShown=0;
+/* keep the fixed control bar from covering the story: pad the reader to the bar's height, then scroll the newest line just above it */
+function fitBar(){var bar=document.querySelector('.bar'),reader=document.querySelector('.reader');if(bar&&reader)reader.style.paddingBottom=(bar.offsetHeight+34)+'px';}
 
 /* ---------- prose vocab ---------- */
 var GOAL={live:'going about the morning',find_food:'looking for something to eat',seek_safety:'keeping their head down',find_comfort:'wound tight, looking for a little comfort',help_others:'lending a hand where it’s needed',seize_opportunity:'watching for an angle'};
@@ -180,7 +182,7 @@ var NOTABLE={conflict:1,ber:1,mimicry:1,crime:1,resolve:1,quest:1};
 function meanwhile(prevLen){var neu=W.storyLog.length-prevLen;if(neu<=0)return [];var fresh=W.storyLog.slice(0,neu).filter(function(e){return NOTABLE[e.tag];});return fresh.slice(0,2).map(function(e){return e.text;});}
 
 /* ---------- write to the stream ---------- */
-function say(html,cls){var s=document.getElementById('stream');var p=document.createElement('p');if(cls)p.className=cls;p.innerHTML=html;s.appendChild(p);window.scrollTo(0,document.body.scrollHeight);}
+function say(html,cls){var s=document.getElementById('stream');var p=document.createElement('p');if(cls)p.className=cls;p.innerHTML=html;s.appendChild(p);fitBar();window.scrollTo(0,document.body.scrollHeight);}
 function aside(label,html){say('<b>'+label+'</b>'+html,'aside');}
 
 /* ---------- narration per action ---------- */
@@ -226,7 +228,7 @@ function run(verb){
   else if(verb==='wear'&&foc){ r=P.wear(W,foc.id); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); }
   else if(verb==='revert'){ r=P.revert(W); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); }
   else if(verb==='rest'){ r=P.rest(W); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+r.msg+'</span>'); pushResp(before,prevLen); }
-  else if(verb==='fight'){ r=P.fight(W,foc&&foc.locId===pl.locId?foc.id:null); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+(r.msg||'')+'</span>'); battleShown=0; flushBattleLog(); if(!mile.fight){mile.fight=1;aside('What that meant','Combat is always available — and almost never clean. Your power in a fight is whichever self you’re wearing; force can settle a moment, but it frightens witnesses, corrodes your standing, and draws BER.');} render(); return; }
+  else if(verb==='fight'){ if(!foc){ say('<span class="mut">There’s no one focused to fight. Tap a name in the “Here:” line first, then Fight.</span>'); render(); return; } r=P.fight(W,foc.locId===pl.locId?foc.id:null); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+(r.msg||'')+'</span>'); say('<span class="mut xs">A fight has begun — your options are in the bar below (Attack · Special · Item · Flee).</span>'); battleShown=0; flushBattleLog(); if(!mile.fight){mile.fight=1;aside('What that meant','Combat is always available — and almost never clean. Your power in a fight is whichever self you’re wearing; force can settle a moment, but it frightens witnesses, corrodes your standing, and draws BER.');} render(); return; }
   else{ render(); return; }
   advanceTut({verb:verb,locId:pl.locId});
   render();
@@ -241,7 +243,7 @@ function openSub(kind){ var box=document.getElementById('walkbox'),pl=W.player,h
   else if(kind==='form'){ html=pl.roster.map(function(id){return '<button data-form="'+id+'"'+(pl.form===id?' disabled':'')+'>'+W.byId[id].name+'</button>';}).join(''); if(pl.form)html+='<button data-form="__self">Be yourself</button>'; if(!pl.roster.length)html='<span class="mut xs" style="padding:6px">You carry no other selves yet — copy someone.</span>'; }
   else if(kind==='item'){ html=pl.items.map(function(it){return '<button data-item="'+it.id+'">'+it.name+(it.uses?' ('+it.uses+')':'')+'</button>';}).join('')||'<span class="mut xs" style="padding:6px">No items.</span>'; }
   else if(kind==='deep'){ var d=TW.deepImprints(W); html=d.map(function(id){return '<button data-dig="'+id+'">'+W.byId[id].name+'</button>';}).join('')||'<span class="mut xs" style="padding:6px">Nothing is buried right now.</span>'; }
-  box.innerHTML=html; box.style.display=box.style.display==='flex'?'none':'flex';
+  box.innerHTML=html; box.style.display=box.style.display==='flex'?'none':'flex'; fitBar();
 }
 function chooseForm(id){ if(id==='__self'){run('revert');document.getElementById('walkbox').style.display='none';return;} var before=snap(),prevLen=W.storyLog.length; var r=TW.Player.wear(W,id); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+r.msg+'</span>'); pushResp(before,prevLen,false); document.getElementById('walkbox').style.display='none'; render(); }
 function chooseDig(id){ var before=snap(),prevLen=W.storyLog.length; var r=TW.Player.digDeeper(W,id); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+r.msg+'</span>'); pushResp(before,prevLen); document.getElementById('walkbox').style.display='none'; render(); }
@@ -333,12 +335,13 @@ function render(){
     if(pl.roster.length)a.push('<button onclick="openSub(\'form\')">Change form ▾</button>');
     if(pl.form)a.push(btn('revert','Be yourself'));
     if(pl.imprints.some(function(id){return W.byId[id]&&W.byId[id].ability==='sense_contamination';}))a.push(btn('sense','Sense the water'));
-    a.push(btn('fight','Fight'+(foc?' '+foc.name.split(' ')[0]:''),!foc));
+    a.push(btn('fight','Fight'+(foc?' '+foc.name.split(' ')[0]:'')));
     if(loc.kind==='home_private'){ a.push(btn('rest','Rest')); if(TW.deepImprints(W).length)a.push('<button onclick="openSub(\'deep\')">Dig deeper ▾</button>'); }
     a.push('<button onclick="openSub(\'walk\')">Walk somewhere ▾</button>');
     a.push(btn('wait','Wait','','primary'));
   }
   document.getElementById('acts').innerHTML=a.join('');
+  fitBar();
 }
 function renderBattle(){
   var b=W.battle,pl=W.player;
@@ -349,6 +352,7 @@ function renderBattle(){
   if(pl.roster.length>1||(pl.roster.length===1&&pl.form!==pl.roster[0]))a.push('<button onclick="openSub(\'form\')">Change form ▾</button>');
   a.push('<button data-b="flee">Flee</button>');
   document.getElementById('acts').innerHTML=a.join('');
+  fitBar();
 }
 function toggleSit(){sitsOpen=!sitsOpen;render();}
 function btn(v,label,dis,cls){return '<button data-run="'+v+'"'+(cls?' class="'+cls+'"':'')+(dis?' disabled':'')+'>'+label+'</button>';}
@@ -371,7 +375,8 @@ function toggleNums(){showNums=!showNums;document.getElementById('nums').style.d
 function begin(skip){if(skip)tutOn=false;newWorld(777);document.getElementById('intro').style.display='none';document.getElementById('game').style.display='block';screen='play';
   document.getElementById('stream').innerHTML='';
   say('<span class="you">You come onto the block a little after six, when the light is still low and gold off the east-facing walls. Two hundred and fifty people live on these six streets. None of them look up. The neighborhood has been awake for hours, and it will keep being awake whether you stay or go.</span>');
-  render();}
+  render(); fitBar();}
+window.addEventListener('resize',fitBar);
 function restartIntro(){document.getElementById('game').style.display='none';document.getElementById('intro').style.display='block';screen='intro';}
 function newWorld(seed){W=TW.createWorld(seed==null?undefined:seed);TW.step(W,1);focusId=null;tut=0;mile={};}
 
