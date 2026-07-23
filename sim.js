@@ -55,6 +55,7 @@
     IMPRINT_STRAIN: 16,         // strain added per imprint carried/used
     COPY_ENERGY: 30,            // Part I cost gradient
     OVERUSE_STRAIN: 24,
+    ROSTER_MAX: 6,              // selves you can hold near the surface (the rest sink)
   };
 
   /* ----------------------------------------------------------------- data --*/
@@ -81,6 +82,7 @@
     { id: 'council', name: 'Neighborhood Council', kind: 'council' },
     { id: 'warehouse', name: 'Warehouse', kind: 'warehouse' },
     { id: 'safehouse', name: 'Safe House', kind: 'safehouse' },
+    { id: 'home', name: 'Your Room', kind: 'home_private' },   // Tales' private, unwatched space
   ];
 
   // 40 persistent NPCs: neighborhood residents built from Part VII ARCHETYPES
@@ -195,6 +197,13 @@
         locId: 'apartments', energy: 100, strain: 0, form: null, imprints: [],
         repDistrict: 0, berThreatTales: 0, photos: [], knows: {}, actions: 0,
         timesSeenShifting: 0,
+        roster: [],            // surfaced imprints (<= CFG.ROSTER_MAX), readily wearable
+        injured: false,        // combat aftermath; healed by rest at home
+        items: [
+          { id: 'pipe', kind: 'weapon', name: 'length of pipe', bonus: 3, reusable: true },
+          { id: 'adrenaline', kind: 'buff', name: 'adrenaline shot', uses: 1 },
+          { id: 'bleach', kind: 'debuff', name: 'handful of bleach powder', uses: 1 },
+        ],
       },
       _lastConflictScan: 0,
     };
@@ -519,6 +528,71 @@
   function here(w) { return w.locations[w.player.locId]; }
   function coLocated(w) { return here(w).present.map((id) => w.byId[id]); }
 
+  /* =====================================================================
+   * RPG LAYER — combat, stats, the arsenal of selves (Identity Bible)
+   *   Your power in a fight IS whose self you wear. One form, one power.
+   * =================================================================== */
+  const TALES_BASE = { str: 5, spd: 5, wit: 5, res: 6 };   // former security guard: steady, unspecial
+  function clamp10(x) { return Math.max(1, Math.min(10, Math.round(x))); }
+  function statsOf(p) {
+    if (!p) return Object.assign({}, TALES_BASE);
+    const t = p.personality || {}, age = p.age || 35;
+    const str = 3 + (t.ambition || 0.4) * 3 + (p.role === 'crime_boss' ? 3 : 0) + (p.ability === 'strength' ? 4 : 0);
+    const spd = 4 + (1 - (age - 18) / 78) * 4 + (p.ability === 'acuity' ? 2 : 0) + (p.ability === 'fast_healing' ? 1 : 0);
+    const wit = 3 + (t.caution || 0.5) * 4 + (p.ability === 'acuity' ? 3 : 0);
+    const res = 3 + (t.altruism || 0.4) * 2 + (p.hope || 40) / 25 + (p.ability === 'endurance' ? 4 : 0);
+    return { str: clamp10(str), spd: clamp10(spd), wit: clamp10(wit), res: clamp10(res) };
+  }
+  function hpOf(s) { return 16 + s.res * 3 + s.str; }
+  function playerStats(w) {
+    const base = w.player.form ? statsOf(w.byId[w.player.form]) : Object.assign({}, TALES_BASE);
+    if (w.player.injured) { base.str = clamp10(base.str - 2); base.spd = clamp10(base.spd - 2); }
+    return base;
+  }
+  // a person's "inner life" line for the codex (humanity, not a stat block)
+  function innerThought(p) {
+    const m = {
+      community_builder: 'Thinks about who didn’t eat today, and how to fix it without anyone noticing.',
+      crime_boss: 'Believes softness gets people killed; provides through fear because it works.',
+      pastor: 'Prays over a doubt he can’t say aloud: that no one is coming to save them.',
+      hidden_changed: 'Carries a secret like a stone — one wrong word and BER takes everything.',
+      ber_agent: 'Follows orders she’s stopped believing in, and hates the quiet afterward.',
+      teacher: 'Is trying to prepare children for a world she can’t picture.',
+      smuggler: 'Keeps a running tally of who owes whom; sentiment is a luxury.',
+      shopkeeper: 'Rations the shelves and his own hope in equal measure.',
+    };
+    return m[p.role] || (p.changed ? 'Hides a change no one can know about; wants only to be ordinary again.' : 'Just wants to get through the day and keep their people safe.');
+  }
+  function talentsOf(p) {
+    const ts = [];
+    if (p.role === 'teacher' || (p.personality && p.personality.sociability > 0.6)) ts.push('persuasion');
+    if (p.role === 'ber_agent' || p.occupation === 'medic') ts.push('first aid');
+    if (p.role === 'smuggler' || p.role === 'crime_boss') ts.push('streetwise');
+    if (p.role === 'community_builder') ts.push('organizing');
+    if (p.ability) ts.push('Changed: ' + p.ability.replace(/_/g, ' '));
+    return ts.length ? ts : ['ordinary'];
+  }
+  // --- the arsenal: 6 surfaced selves; the rest sink and need home to retrieve ---
+  function surfaceImprint(w, id) {
+    const r = w.player.roster;
+    const i = r.indexOf(id); if (i >= 0) r.splice(i, 1);
+    r.unshift(id);
+    let sank = null;
+    while (r.length > CFG.ROSTER_MAX) sank = r.pop();
+    return sank;
+  }
+  function deepImprints(w) { return w.player.imprints.filter((id) => w.player.roster.indexOf(id) < 0); }
+  // shared consequences of on-street violence (Design Pillars: force always costs)
+  function applyViolence(w, o) {
+    const d = w.district, seers = witnessesHere(w, o.enemyId);
+    d.crime = clamp(d.crime + 8); d.cohesion = clamp(d.cohesion - 6); d.morale = clamp(d.morale - 4); d.berThreat = clamp(d.berThreat + 8);
+    w.player.repDistrict = clamp(w.player.repDistrict - (o.won ? 12 : 8), -100, 100);
+    w.player.berThreatTales = clamp(w.player.berThreatTales + 12);
+    for (const s of seers) { s.fear = clamp(s.fear + 18); s.trustTales = clamp(s.trustTales - 12, -100, 100); pmem(s, w, 'saw violence on the block'); }
+    addFact(w, { payload: 'there was violence on the block', truth: true, virality: 60, confidence: 55 }, seers.map((s) => s.id));
+    log(w, `Violence on the block${o.enemyName ? ' — ' + o.enemyName + ' involved' : ''}. People saw.`, 'crime');
+  }
+
   const Player = {
     move(w, locId) {
       if (!w.locations[locId]) return { ok: false, msg: 'no such place' };
@@ -588,27 +662,34 @@
       step(w, 1);
       return { ok: true, msg: `You talk with ${p.name}.${passNote}${body}${extra}` };
     },
+    // Fight now opens a turn-based battle (see Battle). Combat is a costly fallback.
     fight(w, id) {
       const p = id ? w.byId[id] : null;
-      if (p && p.locId !== w.player.locId) return { ok: false, msg: 'they are not here' };
-      const d = w.district, seers = witnessesHere(w, p ? p.id : null);
-      d.crime = clamp(d.crime + 8); d.cohesion = clamp(d.cohesion - 6); d.morale = clamp(d.morale - 4); d.berThreat = clamp(d.berThreat + 8);
-      w.player.repDistrict = clamp(w.player.repDistrict - 12, -100, 100);
-      w.player.berThreatTales = clamp(w.player.berThreatTales + 12);
-      w.player.energy = clamp(w.player.energy - 15);
-      for (const s of seers) { s.fear = clamp(s.fear + 18); s.trustTales = clamp(s.trustTales - 12, -100, 100); pmem(s, w, 'saw violence on the block'); }
-      addFact(w, { payload: 'there was violence on the block', truth: true, virality: 60, confidence: 55 }, seers.map((s) => s.id));
-      let msg;
-      if (p) {
-        p.fear = clamp(p.fear + 40); p.stress = clamp(p.stress + 30); p.trustTales = clamp(p.trustTales - 40, -100, 100); pmem(p, w, 'was attacked by Tales');
-        log(w, `Violence: Tales confronts ${p.name}. The block sees it.`, 'crime');
-        msg = `You get physical with ${p.name}. You can usually end it — and you do — but everyone watching flinches, your standing drops, and BER takes note. Force works, and costs more than it solves.`;
-        if (p.role === 'crime_boss') { d.food = clamp(d.food + 5); msg += ` The crew eases off the market for now — bought with fear, not trust.`; }
-      } else {
-        log(w, `Tales lashes out; the street recoils.`, 'crime');
-        msg = `You brace for a fight, but there’s no one here to fight — only the street, recoiling at the readiness in you.`;
-      }
-      w.player.actions++; step(w, 1);
+      if (!p) return { ok: false, msg: 'There’s no one here to fight.' };
+      if (p.locId !== w.player.locId) return { ok: false, msg: 'they are not here' };
+      const b = Battle.start(w, id, { forced: false });
+      return { ok: true, battle: true, msg: `You square up to ${p.name}. There’s no taking this back once it starts.`, log: b.log.slice() };
+    },
+    rest(w, hours) {
+      if (here(w).kind !== 'home_private') return { ok: false, msg: 'You can only truly rest somewhere private — your own room.' };
+      hours = hours || 4;
+      w.player.energy = clamp(w.player.energy + hours * 8);
+      w.player.strain = clamp(w.player.strain - hours * 6);
+      let msg = `You rest in your room — you eat, wash, and let your own face settle back over you. ${hours} hours pass.`;
+      if (w.player.injured) { w.player.injured = false; msg += ' Your injuries knit enough to move well again.'; }
+      if (w.player.form) { w.player.form = null; msg += ' You let every borrowed self go and are simply yourself.'; }
+      w.player.actions++; step(w, hours);
+      return { ok: true, msg };
+    },
+    digDeeper(w, id) {
+      if (here(w).kind !== 'home_private') return { ok: false, msg: 'You need the quiet of your room to reach that deep.' };
+      if (!w.player.imprints.includes(id)) return { ok: false, msg: 'you carry no such self' };
+      const sank = surfaceImprint(w, id);
+      w.player.energy = clamp(w.player.energy - 8); w.player.strain = clamp(w.player.strain + 4);
+      const p = w.byId[id];
+      let msg = `You sit with the quiet and reach down for ${p ? p.name : 'a buried self'} — their face, their voice, the weight of them — until they rise close enough to wear again.`;
+      if (sank) { const sp = w.byId[sank]; msg += ` As they surface, ${sp ? sp.name : 'another'} sinks back down.`; }
+      w.player.actions++; step(w, 2);
       return { ok: true, msg };
     },
     investigate(w) {
@@ -641,6 +722,7 @@
       w.player.energy = clamp(w.player.energy - CFG.COPY_ENERGY);
       w.player.strain = clamp(w.player.strain + CFG.IMPRINT_STRAIN);
       if (!w.player.imprints.includes(p.id)) w.player.imprints.push(p.id);
+      const sank = surfaceImprint(w, p.id);   // bring this self to the surface; may sink an older one
       w.player.berThreatTales = clamp(w.player.berThreatTales + 8);   // visible power use
       let gain = 'their face, skills, and memories';
       if (p.ability === 'sense_contamination') gain = 'their hidden ability to sense bad water';
@@ -652,11 +734,14 @@
       w.player.actions++; step(w, 1);
       let msg = `Skin contact — you copy ${p.name}. You gain ${gain}. Identity strain rises.`;
       msg += wit.seen ? ` ${wit.text} ${p.name} recoils from your hand.` : ' No one else is near; the theft goes unseen.';
-      return { ok: true, msg, witnessed: wit.seen };
+      if (sank) { const sp = w.byId[sank]; msg += ` Your mind is crowded now — ${sp ? sp.name : 'an earlier self'} slips beneath the surface (retrieve them at home).`; }
+      return { ok: true, msg, witnessed: wit.seen, sank };
     },
     wear(w, id) {
       if (!w.player.imprints.includes(id)) return { ok: false, msg: 'you have no imprint of them' };
+      if (w.player.roster.indexOf(id) < 0) { const dp = w.byId[id]; return { ok: false, msg: `${dp ? dp.name : 'That self'} has sunk too deep to wear right now — go to your room and dig deeper for them.` }; }
       const already = w.player.form; w.player.form = id; const p = w.byId[id];
+      surfaceImprint(w, id);
       w.player.strain = clamp(w.player.strain + 3);
       const wit = reactToShift(w, 'wear', p.name);   // turning into someone in public is alarming
       let msg = `You take on ${p.name}'s form; among strangers you now pass as them, and wear their standing.`;
@@ -695,6 +780,101 @@
       return { ok: true, msg: 'You sense the fouled water and steer people off it. Illnesses averted; no one knows why.' };
     },
     wait(w, hours) { w.player.actions++; step(w, hours || 1); return { ok: true, msg: `You watch and wait. ${hours || 1}h pass. The block does not wait for you.` }; },
+  };
+
+  /* =====================================================================
+   * BATTLE — turn-based, stat-driven; your power is the self you wear.
+   *   Attack (str/spd) · Special (this form's Changed power) · Item · Change form · Flee
+   * =================================================================== */
+  function describeBuild(s) { return s.str >= 7 ? 'powerful' : s.spd >= 7 ? 'quick' : s.res >= 7 ? 'hard to put down' : 'ordinary'; }
+  const Battle = {
+    start(w, enemyId, opts) {
+      opts = opts || {};
+      const e = w.byId[enemyId];
+      const ys = playerStats(w);
+      const you = { name: w.player.form ? (w.byId[w.player.form].name + ' (you)') : 'you', stats: ys, maxHp: hpOf(ys), hp: hpOf(ys), atkBonus: 0, defBonus: 0 };
+      const es = e ? statsOf(e) : { str: 5, spd: 5, wit: 4, res: 5 };
+      const enemy = { id: enemyId, name: e ? e.name : 'a stranger', role: e ? e.role : null, changed: e ? !!e.changed : false, ability: e ? e.ability : null, stats: es, maxHp: hpOf(es), hp: hpOf(es), accPenalty: 0 };
+      const b = { active: true, over: false, forced: !!opts.forced, round: 1, you, enemy, outcome: null, log: [`${enemy.name} turns to face you — they look ${describeBuild(es)}.`] };
+      w.battle = b; return b;
+    },
+    _hit(att, def, base, label, log, rng) {
+      const acc = 0.6 + (att.stats.spd - def.stats.spd) * 0.05 - (att.accPenalty || 0);
+      if (!rng.chance(Math.max(0.15, Math.min(0.95, acc)))) { log.push(`${label} — but it misses.`); return 0; }
+      let dmg = base + att.stats.str + (att.atkBonus || 0) - Math.round(def.stats.res / 2) - (def.defBonus || 0) + rng.int(3);
+      dmg = Math.max(1, dmg); def.hp = Math.max(0, def.hp - dmg);
+      log.push(`${label} for ${dmg}.`); return dmg;
+    },
+    _enemyTurn(w, b) {
+      if (b.over) return; const rng = w.rng;
+      if (b.enemy.changed && b.enemy.ability === 'strength' && rng.chance(0.35)) Battle._hit(b.enemy, b.you, 4, `${b.enemy.name} throws their whole weight in`, b.log, rng);
+      else if (b.enemy.changed && b.enemy.ability === 'fast_healing' && b.enemy.hp < b.enemy.maxHp * 0.5 && rng.chance(0.4)) { const h = 6 + rng.int(4); b.enemy.hp = Math.min(b.enemy.maxHp, b.enemy.hp + h); b.log.push(`${b.enemy.name}'s wounds close before your eyes (+${h}).`); }
+      else Battle._hit(b.enemy, b.you, 2, `${b.enemy.name} strikes`, b.log, rng);
+      b.enemy.accPenalty = 0; b.you.defBonus = 0;
+      Battle._check(w, b);
+    },
+    _check(w, b) {
+      if (b.you.hp <= 0) { b.over = true; b.active = false; b.outcome = 'lost'; Battle._resolve(w, b); }
+      else if (b.enemy.hp <= 0) { b.over = true; b.active = false; b.outcome = 'won'; Battle._resolve(w, b); }
+    },
+    _resolve(w, b) {
+      applyViolence(w, { won: b.outcome === 'won', enemyId: b.enemy.id, enemyName: b.enemy.name });
+      const e = w.byId[b.enemy.id];
+      if (b.outcome === 'won') {
+        w.player.energy = clamp(w.player.energy - 18);
+        if (e) { e.fear = clamp(e.fear + 45); e.stress = clamp(e.stress + 30); e.trustTales = clamp(e.trustTales - 45, -100, 100); pmem(e, w, 'was beaten by Tales'); }
+        if (b.enemy.role === 'crime_boss') { w.district.food = clamp(w.district.food + 5); b.log.push('The crew eases off the market — bought with fear, not trust.'); }
+        b.log.push(`${b.enemy.name} goes down. You stand over them, and the street has seen exactly what you are.`);
+      } else if (b.outcome === 'lost') {
+        w.player.injured = true; w.player.energy = clamp(w.player.energy - 30); if (w.player.form) w.player.form = null;
+        b.log.push('It goes wrong. You take the worst of it and break away hurt — your room, and rest, are the only cure.');
+      } else {
+        w.player.energy = clamp(w.player.energy - 10);
+        b.log.push('You break contact and lose yourself in the block.');
+      }
+      w.player.actions++; step(w, 1);
+    },
+    attack(w) { const b = w.battle; if (!b || b.over) return b; Battle._hit(b.you, b.enemy, 2, 'You strike', b.log, w.rng); Battle._check(w, b); if (!b.over) Battle._enemyTurn(w, b); b.round++; return b; },
+    special(w) {
+      const b = w.battle; if (!b || b.over) return b; const rng = w.rng;
+      const ab = w.player.form ? (w.byId[w.player.form] || {}).ability : null;
+      if (!ab) { b.log.push('This form has no special power — fight with your hands, or wear a self that can.'); return b; }
+      if (ab === 'strength') Battle._hit(b.you, b.enemy, 6, 'You put a Changed strength behind it', b.log, rng);
+      else if (ab === 'acuity') { let dmg = 5 + b.you.stats.str + (b.you.atkBonus || 0) - Math.round(b.enemy.stats.res / 2) + rng.int(4); dmg = Math.max(1, dmg); b.enemy.hp = Math.max(0, b.enemy.hp - dmg); b.log.push(`You read them and strike a nerve for ${dmg}.`); }
+      else if (ab === 'endurance') { const h = 5 + rng.int(4); b.you.hp = Math.min(b.you.maxHp, b.you.hp + h); b.you.defBonus = 2; b.log.push(`You set a Changed endurance against the pain (+${h}; you’ll take less next).`); }
+      else if (ab === 'fast_healing') { const h = 7 + rng.int(5); b.you.hp = Math.min(b.you.maxHp, b.you.hp + h); b.log.push(`Your wounds close as fast as they open (+${h}).`); }
+      else if (ab === 'sense_contamination') { b.log.push('Sensing bad water does nothing in a fistfight — this self was never a fighter.'); return b; }
+      else { b.log.push('This power finds no purchase in a fight.'); return b; }
+      Battle._check(w, b); if (!b.over) Battle._enemyTurn(w, b); b.round++; return b;
+    },
+    item(w, itemId) {
+      const b = w.battle; if (!b || b.over) return b;
+      const inv = w.player.items, it = inv.find((x) => x.id === itemId); if (!it) return b;
+      if (it.kind === 'weapon') { b.you.atkBonus = (b.you.atkBonus || 0) + it.bonus; b.log.push(`You ready the ${it.name} (+${it.bonus} to your blows).`); }
+      else if (it.kind === 'buff') { b.you.stats = Object.assign({}, b.you.stats, { str: clamp10(b.you.stats.str + 2), spd: clamp10(b.you.stats.spd + 2) }); b.log.push(`The ${it.name} hits your blood — faster, harder to slow.`); }
+      else if (it.kind === 'debuff') { b.enemy.accPenalty = 0.35; b.log.push(`You fling the ${it.name}; ${b.enemy.name} claws at their eyes, half-blind.`); }
+      if (!it.reusable) { it.uses = (it.uses || 1) - 1; if (it.uses <= 0) inv.splice(inv.indexOf(it), 1); }
+      Battle._enemyTurn(w, b); b.round++; return b;
+    },
+    changeForm(w, id) {
+      const b = w.battle; if (!b || b.over) return b;
+      if (w.player.roster.indexOf(id) < 0) { b.log.push('That self is too deep to reach mid-fight.'); return b; }
+      w.player.form = id; surfaceImprint(w, id);
+      const ns = playerStats(w), ratio = b.you.hp / b.you.maxHp;
+      b.you.stats = ns; b.you.maxHp = hpOf(ns); b.you.hp = Math.max(1, Math.round(b.you.maxHp * ratio)); b.you.name = w.byId[id].name + ' (you)';
+      b.log.push(`You shift into ${w.byId[id].name} between one breath and the next — your enemy, and the street, see it happen.`);
+      reactToShift(w, 'wear', w.byId[id].name);
+      Battle._enemyTurn(w, b); b.round++; return b;
+    },
+    flee(w) {
+      const b = w.battle; if (!b || b.over) return b;
+      if (b.forced) { b.log.push('There’s no running from this one.'); Battle._enemyTurn(w, b); return b; }
+      const chance = 0.5 + (b.you.stats.spd - b.enemy.stats.spd) * 0.06;
+      if (w.rng.chance(Math.max(0.2, Math.min(0.85, chance)))) { b.over = true; b.active = false; b.outcome = 'fled'; Battle._resolve(w, b); }
+      else { b.log.push('You break for it — but they cut you off. No escape yet.'); Battle._enemyTurn(w, b); b.round++; }
+      return b;
+    },
+    end(w) { w.battle = null; },
   };
 
   function describeGoal(p) {
@@ -813,7 +993,7 @@
   }
 
   /* ------------------------------------------------------------- exports --*/
-  const API = { createWorld, tick, step, Player, serialize, deserialize, CFG, LOC_DEFS, coLocated, here, nextStep };
+  const API = { createWorld, tick, step, Player, Battle, serialize, deserialize, CFG, LOC_DEFS, coLocated, here, nextStep, statsOf, hpOf, playerStats, innerThought, talentsOf, deepImprints };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.TapWater = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
