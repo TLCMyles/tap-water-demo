@@ -58,6 +58,22 @@
   .acts{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
   .acts button{font-size:13.5px}
   .dlabel{font-size:12.5px;color:var(--gold);margin-right:4px}
+  /* battle */
+  .hp{font-size:12.5px;color:var(--soft);font-family:-apple-system,sans-serif}
+  .hpbar{display:inline-block;width:120px;height:7px;background:#0a1522;border:1px solid var(--bd);border-radius:4px;vertical-align:middle;overflow:hidden;margin-left:5px}
+  .hpbar i{display:block;height:100%;background:var(--bad)}
+  .hpbar.you i{background:var(--good)}
+  #stream .hit{font-family:-apple-system,sans-serif;font-size:14px;color:var(--soft)}
+  #stream .win{color:var(--good)} #stream .lose{color:var(--bad)}
+  /* roster / codex */
+  #roster{display:none;font-family:-apple-system,sans-serif;background:var(--ink);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin:6px 0 16px}
+  #roster .cap{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--acc);margin:0 0 8px}
+  .rp{border-top:1px solid #14283c;padding:8px 0}
+  .rp:first-of-type{border-top:none}
+  .rn{font-size:14px;color:var(--txt)} .worn{color:var(--gold)} .sunk{color:var(--mut);font-size:11px}
+  .rs{font-size:11.5px;color:var(--acc);margin-top:2px}
+  .rt{font-size:12px;color:var(--mut);margin-top:2px}
+  .rth{font-size:12.5px;color:var(--soft);font-style:italic;margin-top:3px}
   /* situations tracker */
   #sitbar{display:none;margin-bottom:10px}
   .sittog{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--acc);cursor:pointer}
@@ -91,8 +107,9 @@
   <div class="reader">
     <div class="head">
       <div><h1>Six Blocks</h1><div class="when" id="when"></div></div>
-      <div style="text-align:right"><button class="lnk" onclick="toggleNums()" id="numtog">show the numbers</button></div>
+      <div style="text-align:right"><button class="lnk" onclick="toggleRoster()" id="rostertog">who you carry</button> <button class="lnk" onclick="toggleNums()" id="numtog">show the numbers</button></div>
     </div>
+    <div id="roster" class="ui"></div>
     <div id="nums" class="ui"></div>
     <div class="mood" id="mood"></div>
     <div class="place ui" id="place"></div>
@@ -118,7 +135,7 @@
 
 <script src="sim.js"></script>
 <script>
-var TW=window.TapWater, W=null, screen='intro', focusId=null, tut=0, tutOn=true, mile={}, showNums=false, talking=false, sitsOpen=true;
+var TW=window.TapWater, W=null, screen='intro', focusId=null, tut=0, tutOn=true, mile={}, showNums=false, talking=false, sitsOpen=true, showRoster=false, battleShown=0;
 
 /* ---------- prose vocab ---------- */
 var GOAL={live:'going about the morning',find_food:'looking for something to eat',seek_safety:'keeping their head down',find_comfort:'wound tight, looking for a little comfort',help_others:'lending a hand where it’s needed',seize_opportunity:'watching for an angle'};
@@ -208,11 +225,30 @@ function run(verb){
   else if(verb==='copy'&&foc){ r=P.copy(W,foc.id); say('<span class="you">A hand on a shoulder — and something in you reaches out and takes hold of who '+foc.name+' is. '+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); if(r.ok&&!mile.copy){mile.copy=1;aside('What that meant','Power here is never free. Every self you take on presses on your own — collect too many and Tales risks losing track of who he is. And now the block has seen it: being watched is its own cost.');} }
   else if(verb==='wear'&&foc){ r=P.wear(W,foc.id); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); }
   else if(verb==='revert'){ r=P.revert(W); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); }
-  else if(verb==='fight'){ r=P.fight(W,foc&&foc.locId===pl.locId?foc.id:null); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); if(!mile.fight){mile.fight=1;aside('What that meant','Combat is always available — and almost never clean. Force can settle a moment, but it frightens witnesses, corrodes your standing, and draws BER. Tap Water lets you fight; it just makes sure it costs.');} }
+  else if(verb==='rest'){ r=P.rest(W); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+r.msg+'</span>'); pushResp(before,prevLen); }
+  else if(verb==='fight'){ r=P.fight(W,foc&&foc.locId===pl.locId?foc.id:null); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+(r.msg||'')+'</span>'); battleShown=0; flushBattleLog(); if(!mile.fight){mile.fight=1;aside('What that meant','Combat is always available — and almost never clean. Your power in a fight is whichever self you’re wearing; force can settle a moment, but it frightens witnesses, corrodes your standing, and draws BER.');} render(); return; }
   else{ render(); return; }
   advanceTut({verb:verb,locId:pl.locId});
   render();
 }
+/* ---------- battle ---------- */
+function flushBattleLog(){ var b=W.battle; if(!b)return; for(var i=battleShown;i<b.log.length;i++){ var t=b.log[i],cls=/goes down|eases off/.test(t)?'hit win':/goes wrong|worst of it/.test(t)?'hit lose':'hit'; say('<span class="'+cls+'">'+t+'</span>'); } battleShown=b.log.length; }
+function bAct(method,arg){ var b=W.battle; if(!b||b.over)return; TW.Battle[method](W,arg); flushBattleLog(); if(W.battle&&W.battle.over){ var out=W.battle.outcome; TW.Battle.end(W); battleShown=0; document.getElementById('walkbox').style.display='none'; if(out==='won'&&!mile.won){mile.won=1;} } render(); }
+function hpbar(c,you){ var pct=Math.max(0,Math.round(c.hp/c.maxHp*100)); return c.hp+'/'+c.maxHp+' <span class="hpbar'+(you?' you':'')+'"><i style="width:'+pct+'%"></i></span>'; }
+/* ---------- forms / items / dig (submenus) ---------- */
+function openSub(kind){ var box=document.getElementById('walkbox'),pl=W.player,html='';
+  if(kind==='walk') html=TW.LOC_DEFS.map(function(l){return '<button data-walk="'+l.id+'"'+(l.id===pl.locId?' disabled':'')+'>'+l.name+'</button>';}).join('');
+  else if(kind==='form'){ html=pl.roster.map(function(id){return '<button data-form="'+id+'"'+(pl.form===id?' disabled':'')+'>'+W.byId[id].name+'</button>';}).join(''); if(pl.form)html+='<button data-form="__self">Be yourself</button>'; if(!pl.roster.length)html='<span class="mut xs" style="padding:6px">You carry no other selves yet — copy someone.</span>'; }
+  else if(kind==='item'){ html=pl.items.map(function(it){return '<button data-item="'+it.id+'">'+it.name+(it.uses?' ('+it.uses+')':'')+'</button>';}).join('')||'<span class="mut xs" style="padding:6px">No items.</span>'; }
+  else if(kind==='deep'){ var d=TW.deepImprints(W); html=d.map(function(id){return '<button data-dig="'+id+'">'+W.byId[id].name+'</button>';}).join('')||'<span class="mut xs" style="padding:6px">Nothing is buried right now.</span>'; }
+  box.innerHTML=html; box.style.display=box.style.display==='flex'?'none':'flex';
+}
+function chooseForm(id){ if(id==='__self'){run('revert');document.getElementById('walkbox').style.display='none';return;} var before=snap(),prevLen=W.storyLog.length; var r=TW.Player.wear(W,id); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+r.msg+'</span>'); pushResp(before,prevLen,false); document.getElementById('walkbox').style.display='none'; render(); }
+function chooseDig(id){ var before=snap(),prevLen=W.storyLog.length; var r=TW.Player.digDeeper(W,id); if(!r.ok){say('<span class="mut">'+r.msg+'</span>');render();return;} say('<span class="you">'+r.msg+'</span>'); pushResp(before,prevLen); document.getElementById('walkbox').style.display='none'; render(); }
+/* ---------- codex ---------- */
+function toggleRoster(){ showRoster=!showRoster; document.getElementById('roster').style.display=showRoster?'block':'none'; document.getElementById('rostertog').textContent=showRoster?'hide who you carry':'who you carry'; render(); }
+function formLine(id,active){ var p=W.byId[id],s=TW.statsOf(p); return '<div class="rp"><div class="rn">'+p.name+(active?'':' <span class="sunk">(sunk — dig deeper at home)</span>')+(W.player.form===id?' <span class="worn">· worn now</span>':'')+'</div><div class="rs">STR '+s.str+' · SPD '+s.spd+' · WIT '+s.wit+' · RES '+s.res+' · HP '+TW.hpOf(s)+'</div><div class="rt">Power: '+(p.ability?p.ability.replace(/_/g,' '):'none')+' · Talents: '+TW.talentsOf(p).join(', ')+'</div><div class="rth">“'+TW.innerThought(p)+'”</div></div>'; }
+function renderRoster(){ if(!showRoster)return; var pl=W.player,deep=TW.deepImprints(W); var h='<div class="cap">Who you carry — '+pl.roster.length+' near the surface'+(deep.length?', '+deep.length+' sunk':'')+' (max '+TW.CFG.ROSTER_MAX+')</div>'; if(!pl.imprints.length){ h+='<div class="mut" style="font-family:Georgia,serif;font-style:italic">No one yet. When you copy someone, their self — stats, power, talents, and the shape of their thoughts — is carried here.</div>'; } else { h+=pl.roster.map(function(id){return formLine(id,true);}).join('')+deep.map(function(id){return formLine(id,false);}).join(''); } document.getElementById('roster').innerHTML=h; }
 function chooseSay(topic){
   var foc=focusPerson(); if(!foc){talking=false;render();return;}
   if(topic==='leave'){talking=false;render();return;}
@@ -246,7 +282,7 @@ var TUT=[
  {do:'Do nothing for a moment — tap <b>Wait</b> — and watch the block move without you.',ok:function(c){return c.verb==='wait';},
   t:'The world does not revolve around you',b:'You did nothing, and the block still changed — people acted, needs shifted, maybe a rumor spread. This is why two players get different stories: the world is always in motion, and your choices only tip it one way or another.'}
 ];
-var FREE='It’s yours now. Try to lift the block’s spirits, or find the hidden Changed, copy their gift, and quietly protect the water — then start over on the same seed and play it differently.';
+var FREE='It’s yours now. Copy people to carry their selves (see “who you carry” up top), wear a Changed self before a fight, retreat to Your Room to rest and dig deeper for buried selves — and remember everything you do, the block remembers too.';
 function advanceTut(c){
   if(tutOn&&tut<TUT.length&&TUT[tut].ok(c)){var st=TUT[tut];tut++;aside('What that meant',st.b);}
   if(!mile.discover&&W.quests.some(function(q){return q.discovered;})){mile.discover=1;aside('You found a story no one handed you','A situation just surfaced because you learned enough about it by being here — not because a marker spawned. You can ignore it, look closer, help one side, or use it. There’s rarely a right answer, and the block will remember what you chose.');}
@@ -261,6 +297,9 @@ function render(){
   document.getElementById('place').textContent=loc.name+(loc.stock!=null?'  ·  food on the shelves: '+(loc.stock<22?'thin':loc.stock<40?'some':'stocked'):'');
   // numbers panel
   if(showNums){var worn=pl.form?(W.byId[pl.form]?W.byId[pl.form].name:'someone'):'yourself';document.getElementById('nums').innerHTML='<div class="row"><span class="pill">Food <b>'+Math.round(d.food)+'</b></span><span class="pill">Safe water <b>'+Math.round(d.safeWater)+'</b></span><span class="pill">Morale <b>'+Math.round(d.morale)+'</b></span><span class="pill">Cohesion <b>'+Math.round(d.cohesion)+'</b></span><span class="pill">Crime <b>'+Math.round(d.crime)+'</b></span><span class="pill">BER threat <b>'+Math.round(d.berThreat)+'</b> ('+['Observe','Monitor','Suppress','Contain','Military'][d.berPosture]+')</span></div><div class="row"><span class="pill">Tales · energy <b>'+Math.round(pl.energy)+'</b></span><span class="pill">strain <b>'+Math.round(pl.strain)+'</b></span><span class="pill">local rep <b>'+(pl.repDistrict>0?'+':'')+Math.round(pl.repDistrict)+'</b></span><span class="pill">BER file <b>'+Math.round(pl.berThreatTales)+'</b></span><span class="pill">wearing <b>'+worn+'</b></span><span class="pill">imprints <b>'+pl.imprints.length+'</b></span></div>';}
+  renderRoster();
+  // BATTLE takes over the control bar while it lasts
+  if(W.battle&&!W.battle.over){ renderBattle(); return; }
   // guide
   var g=document.getElementById('guide');
   if(tutOn&&tut<TUT.length)g.innerHTML='<span class="step">Step '+(tut+1)+' of '+TUT.length+'</span>'+TUT[tut].do;
@@ -291,21 +330,35 @@ function render(){
     a.push(btn('help','Help here'));
     a.push(btn('photo','Photograph'));
     if(foc)a.push(btn('copy','Copy '+foc.name.split(' ')[0]));
-    if(foc&&pl.imprints.indexOf(foc.id)>=0)a.push(btn('wear','Wear '+foc.name.split(' ')[0]));
+    if(pl.roster.length)a.push('<button onclick="openSub(\'form\')">Change form ▾</button>');
     if(pl.form)a.push(btn('revert','Be yourself'));
     if(pl.imprints.some(function(id){return W.byId[id]&&W.byId[id].ability==='sense_contamination';}))a.push(btn('sense','Sense the water'));
-    a.push(btn('fight','Fight'+(foc?' '+foc.name.split(' ')[0]:'')));
-    a.push('<button onclick="toggleWalk()">Walk somewhere ▾</button>');
+    a.push(btn('fight','Fight'+(foc?' '+foc.name.split(' ')[0]:''),!foc));
+    if(loc.kind==='home_private'){ a.push(btn('rest','Rest')); if(TW.deepImprints(W).length)a.push('<button onclick="openSub(\'deep\')">Dig deeper ▾</button>'); }
+    a.push('<button onclick="openSub(\'walk\')">Walk somewhere ▾</button>');
     a.push(btn('wait','Wait','','primary'));
   }
   document.getElementById('acts').innerHTML=a.join('');
-  document.getElementById('walkbox').innerHTML=TW.LOC_DEFS.map(function(l){return '<button data-walk="'+l.id+'"'+(l.id===pl.locId?' disabled':'')+'>'+l.name+'</button>';}).join('');
+}
+function renderBattle(){
+  var b=W.battle,pl=W.player;
+  document.getElementById('sitbar').style.display='none';
+  document.getElementById('guide').innerHTML='<span class="step">Battle · round '+b.round+'</span>Your power is the self you wear. Strike, use its power, an item, change your face, or run.';
+  document.getElementById('here').innerHTML='<span class="hp">You'+(pl.form?' — '+W.byId[pl.form].name:'')+': '+hpbar(b.you,true)+'</span> &nbsp;&nbsp; <span class="hp">'+b.enemy.name+': '+hpbar(b.enemy)+'</span>';
+  var a=['<button data-b="attack">Attack</button>','<button data-b="special">Special</button>','<button onclick="openSub(\'item\')">Item ▾</button>'];
+  if(pl.roster.length>1||(pl.roster.length===1&&pl.form!==pl.roster[0]))a.push('<button onclick="openSub(\'form\')">Change form ▾</button>');
+  a.push('<button data-b="flee">Flee</button>');
+  document.getElementById('acts').innerHTML=a.join('');
 }
 function toggleSit(){sitsOpen=!sitsOpen;render();}
 function btn(v,label,dis,cls){return '<button data-run="'+v+'"'+(cls?' class="'+cls+'"':'')+(dis?' disabled':'')+'>'+label+'</button>';}
 
 /* ---------- input ---------- */
 document.addEventListener('click',function(e){
+  var bb=e.target.closest('[data-b]');if(bb){bAct(bb.getAttribute('data-b'));return;}
+  var fm=e.target.closest('[data-form]');if(fm){var id=fm.getAttribute('data-form');if(W.battle&&!W.battle.over){bAct('changeForm',id);document.getElementById('walkbox').style.display='none';}else{chooseForm(id);}return;}
+  var it=e.target.closest('[data-item]');if(it){if(W.battle&&!W.battle.over){bAct('item',it.getAttribute('data-item'));document.getElementById('walkbox').style.display='none';}return;}
+  var dg=e.target.closest('[data-dig]');if(dg){chooseDig(dg.getAttribute('data-dig'));return;}
   var f=e.target.closest('[data-focus]');if(f){focusId=f.getAttribute('data-focus');talking=false;render();return;}
   var s=e.target.closest('[data-say]');if(s){chooseSay(s.getAttribute('data-say'));return;}
   var w=e.target.closest('[data-walk]');if(w){walkTo(w.getAttribute('data-walk'));return;}
