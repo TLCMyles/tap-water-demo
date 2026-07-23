@@ -55,8 +55,16 @@
   .here{font-size:12.5px;color:var(--mut);margin-bottom:9px}
   .here .who{color:var(--soft);cursor:pointer;border-bottom:1px dotted var(--bd);margin:0 3px}
   .here .who.f{color:var(--gold);border-color:var(--gold)}
-  .acts{display:flex;flex-wrap:wrap;gap:7px}
+  .acts{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
   .acts button{font-size:13.5px}
+  .dlabel{font-size:12.5px;color:var(--gold);margin-right:4px}
+  /* situations tracker */
+  #sitbar{display:none;margin-bottom:10px}
+  .sittog{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--acc);cursor:pointer}
+  .sitlist{margin-top:6px;border-left:2px solid var(--acc);padding-left:11px}
+  .sit{margin-bottom:7px}
+  .sit .st{font-size:13.5px;color:var(--soft)}
+  .sit .hint{font-size:12px;color:var(--mut)}
   #walkbox{display:none;margin-top:8px;flex-wrap:wrap;gap:6px}
   #walkbox button{font-size:12.5px;padding:6px 10px}
   .foot{margin-top:9px;font-size:11px;color:var(--mut);display:flex;gap:12px;flex-wrap:wrap}
@@ -93,6 +101,7 @@
 
   <div class="bar">
     <div class="barin">
+      <div id="sitbar" class="ui"></div>
       <div class="guide" id="guide"></div>
       <div class="here" id="here"></div>
       <div class="acts" id="acts"></div>
@@ -109,7 +118,7 @@
 
 <script src="sim.js"></script>
 <script>
-var TW=window.TapWater, W=null, screen='intro', focusId=null, tut=0, tutOn=true, mile={}, showNums=false;
+var TW=window.TapWater, W=null, screen='intro', focusId=null, tut=0, tutOn=true, mile={}, showNums=false, talking=false, sitsOpen=true;
 
 /* ---------- prose vocab ---------- */
 var GOAL={live:'going about the morning',find_food:'looking for something to eat',seek_safety:'keeping their head down',find_comfort:'wound tight, looking for a little comfort',help_others:'lending a hand where it’s needed',seize_opportunity:'watching for an angle'};
@@ -182,38 +191,39 @@ function narrateArrive(msg,prevLen){
 }
 
 /* ---------- action runner ---------- */
-function run(verb){
-  var P=TW.Player,pl=W.player,prevLen,before,r,foc=focusPerson();
-  if(verb==='observe'){narrateObserve();advanceTut({verb:'observe',locId:pl.locId});render();return;}
-  before=snap();prevLen=W.storyLog.length;
-
-  if(verb==='help'){r=P.help(W);say('<span class="you">You put an hour into the work of the place — hands busy, few words.</span>');}
-  else if(verb==='photo'){r=P.photograph(W,foc&&foc.locId===pl.locId?foc.id:null);say('<span class="you">You raise the camera and take the picture — something true, framed and undeniable.</span>');}
-  else if(verb==='talk'&&foc){r=P.talk(W,foc.id);say('<span class="you">You fall into conversation with '+foc.name+'.</span>');}
-  else if(verb==='copy'&&foc){r=P.copy(W,foc.id);say('<span class="you">A hand on a shoulder — and something in you reaches out and takes hold of who '+foc.name+' is.</span>');}
-  else if(verb==='wear'&&foc){r=P.wear(W,foc.id);}
-  else if(verb==='revert'){r=P.revert(W);}
-  else if(verb==='sense'){r=P.useAbility(W);}
-  else if(verb==='wait'){r=P.wait(W,1);say('<span class="you">You let an hour pass, doing nothing in particular.</span>');}
-  else{render();return;}
-
-  // world's response, in prose
-  var resp=deltaProse(before,snap());
-  var extra='';
-  if(verb==='talk'&&r){ if(/Changed/.test(r.msg||'')||/lowers their voice/.test(r.msg||'')) extra=' Late in the talk '+foc.name+' lowers their voice and tells you a thing they tell no one — they can feel it when the water has gone wrong.'; else extra=' They warm to you a little.'; }
-  if(verb==='photo'&&r&&/noticed you shooting|BER/.test(r.msg||'')) extra=' A guard clocks you doing it; somewhere your name goes a little further into a file.';
-  if(verb==='copy'&&r&&r.ok){ extra=' It costs — a wave of tiredness, and a new presence rooted behind your eyes that will not simply leave. But you can feel what they could do, now, as if it were yours.'; }
-  if(verb==='wear'&&r) extra=' You settle into the borrowed face.';
-  if(verb==='revert'&&r) extra=' The hardest form to wear is your own.';
-  if(verb==='sense'&&r) extra=' '+(r.msg||'');
-  if(resp||extra) say((extra?extra.trim()+' ':'')+resp);
-
+function pushResp(before,prevLen,showDelta){
+  if(showDelta!==false){var resp=deltaProse(before,snap());if(resp)say(resp);}
   meanwhile(prevLen).forEach(function(m){say('<b>Meanwhile —</b> '+m,'meanwhile');});
+}
+function run(verb){
+  var P=TW.Player,pl=W.player,foc=focusPerson(),before,prevLen,r;
+  if(verb==='observe'){narrateObserve();advanceTut({verb:'observe',locId:pl.locId});render();return;}
+  if(verb==='talk'){ if(foc){talking=true;render();} return; }   // open the conversation tree
+  before=snap();prevLen=W.storyLog.length;
+  if(verb==='help'){ r=P.help(W); say('<span class="you">You put an hour into the work of the place — hands busy, few words. '+(r.msg||'')+'</span>'); pushResp(before,prevLen); }
+  else if(verb==='wait'){ r=P.wait(W,1); say('<span class="you">You let an hour pass, doing nothing in particular. The block does not wait for you.</span>'); pushResp(before,prevLen); }
+  else if(verb==='photo'){ r=P.photograph(W,foc&&foc.locId===pl.locId?foc.id:null); say('<span class="you">You raise the camera and take the picture — something true, framed and undeniable. '+(r.msg||'')+'</span>'); pushResp(before,prevLen); }
+  else if(verb==='investigate'){ r=P.investigate(W); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen); }
+  else if(verb==='sense'){ r=P.useAbility(W); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen); }
+  else if(verb==='copy'&&foc){ r=P.copy(W,foc.id); say('<span class="you">A hand on a shoulder — and something in you reaches out and takes hold of who '+foc.name+' is. '+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); if(r.ok&&!mile.copy){mile.copy=1;aside('What that meant','Power here is never free. Every self you take on presses on your own — collect too many and Tales risks losing track of who he is. And now the block has seen it: being watched is its own cost.');} }
+  else if(verb==='wear'&&foc){ r=P.wear(W,foc.id); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); }
+  else if(verb==='revert'){ r=P.revert(W); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); }
+  else if(verb==='fight'){ r=P.fight(W,foc&&foc.locId===pl.locId?foc.id:null); say('<span class="you">'+(r.msg||'')+'</span>'); pushResp(before,prevLen,false); if(!mile.fight){mile.fight=1;aside('What that meant','Combat is always available — and almost never clean. Force can settle a moment, but it frightens witnesses, corrodes your standing, and draws BER. Tap Water lets you fight; it just makes sure it costs.');} }
+  else{ render(); return; }
   advanceTut({verb:verb,locId:pl.locId});
-  if(verb==='copy'&&r&&r.ok&&!mile.copy){mile.copy=1;aside('What that meant','Power here is never free. Every self you take on presses on your own — collect too many and Tales risks losing track of who he is. That tension is the point of him: he can be anyone, and his real struggle is being himself.');}
   render();
 }
-function walkTo(id){var prevLen=W.storyLog.length;var r=TW.Player.move(W,id);focusId=null;narrateArrive(r&&r.msg,prevLen);advanceTut({verb:'move',locId:id});document.getElementById('walkbox').style.display='none';render();}
+function chooseSay(topic){
+  var foc=focusPerson(); if(!foc){talking=false;render();return;}
+  if(topic==='leave'){talking=false;render();return;}
+  var before=snap(),prevLen=W.storyLog.length;
+  var r=TW.Player.talk(W,foc.id,topic);
+  say('<span class="you">'+(r.msg||'')+'</span>');
+  if(r.recognized==='self'&&!mile.recog){mile.recog=1;aside('What that meant','Wearing the wrong face has teeth now. Speaking to someone as themselves — or to anyone who knows them well — can expose you. The disguise only holds with strangers; among people who know the face, being seen matters.');}
+  pushResp(before,prevLen);
+  talking=false; advanceTut({verb:'talk',locId:W.player.locId}); render();
+}
+function walkTo(id){var prevLen=W.storyLog.length;var r=TW.Player.move(W,id);focusId=null;talking=false;narrateArrive(r&&r.msg,prevLen);advanceTut({verb:'move',locId:id});document.getElementById('walkbox').style.display='none';render();}
 
 /* ---------- tutorial (as gentle prose + inline asides) ---------- */
 var TUT=[
@@ -255,29 +265,49 @@ function render(){
   var g=document.getElementById('guide');
   if(tutOn&&tut<TUT.length)g.innerHTML='<span class="step">Step '+(tut+1)+' of '+TUT.length+'</span>'+TUT[tut].do;
   else g.innerHTML='<span class="step">Free play</span>'+FREE;
+  // situations tracker (discovered, open)
+  var sits=W.quests.filter(function(q){return q.discovered&&q.state==='open';});
+  var sb=document.getElementById('sitbar');
+  if(sits.length){
+    var head='<span class="sittog" onclick="toggleSit()">Situations you’re following ('+sits.length+') '+(sitsOpen?'▾':'▸')+'</span>';
+    var list=sitsOpen?('<div class="sitlist">'+sits.map(function(q){return '<div class="sit"><div class="st">'+q.title+'</div><div class="hint">→ '+TW.nextStep(W,q)+'</div></div>';}).join('')+'</div>'):'';
+    sb.innerHTML=head+list; sb.style.display='block';
+  } else { sb.style.display='none'; sb.innerHTML=''; }
   // here (focus chips)
   var per=presentPersistent(),foc=focusPerson();
   document.getElementById('here').innerHTML=per.length?('Here: '+per.map(function(p){return '<span class="who'+(foc&&foc.id===p.id?' f':'')+'" data-focus="'+p.id+'">'+p.name+'</span>';}).join(' · ')):(bgCount()?'<span class="mut">Only neighbors you don’t know by name are here.</span>':'<span class="mut">The street is empty.</span>');
-  // actions
+  // actions — or the conversation tree, if talking
   var a=[];
-  a.push(btn('observe','Look around'));
-  a.push(btn('talk','Talk'+(foc?' to '+foc.name.split(' ')[0]:''),!foc));
-  a.push(btn('help','Help here'));
-  a.push(btn('photo','Photograph'));
-  if(foc)a.push(btn('copy','Copy '+foc.name.split(' ')[0]));
-  if(foc&&pl.imprints.indexOf(foc.id)>=0)a.push(btn('wear','Wear '+foc.name.split(' ')[0]));
-  if(pl.form)a.push(btn('revert','Be yourself'));
-  if(pl.imprints.some(function(id){return W.byId[id]&&W.byId[id].ability==='sense_contamination';}))a.push(btn('sense','Sense the water'));
-  a.push('<button onclick="toggleWalk()">Walk somewhere ▾</button>');
-  a.push(btn('wait','Wait','','primary'));
+  if(talking&&foc){
+    a.push('<span class="dlabel">Talking with '+foc.name+':</span>');
+    a.push('<button data-say="them">Ask about them</button>');
+    a.push('<button data-say="block">Ask how the block is</button>');
+    a.push('<button data-say="situation">Ask about the trouble here</button>');
+    a.push('<button data-say="leave">Say goodbye</button>');
+  } else {
+    a.push(btn('observe','Look around'));
+    a.push(btn('talk','Talk'+(foc?' to '+foc.name.split(' ')[0]:''),!foc));
+    a.push(btn('investigate','Investigate'));
+    a.push(btn('help','Help here'));
+    a.push(btn('photo','Photograph'));
+    if(foc)a.push(btn('copy','Copy '+foc.name.split(' ')[0]));
+    if(foc&&pl.imprints.indexOf(foc.id)>=0)a.push(btn('wear','Wear '+foc.name.split(' ')[0]));
+    if(pl.form)a.push(btn('revert','Be yourself'));
+    if(pl.imprints.some(function(id){return W.byId[id]&&W.byId[id].ability==='sense_contamination';}))a.push(btn('sense','Sense the water'));
+    a.push(btn('fight','Fight'+(foc?' '+foc.name.split(' ')[0]:'')));
+    a.push('<button onclick="toggleWalk()">Walk somewhere ▾</button>');
+    a.push(btn('wait','Wait','','primary'));
+  }
   document.getElementById('acts').innerHTML=a.join('');
   document.getElementById('walkbox').innerHTML=TW.LOC_DEFS.map(function(l){return '<button data-walk="'+l.id+'"'+(l.id===pl.locId?' disabled':'')+'>'+l.name+'</button>';}).join('');
 }
+function toggleSit(){sitsOpen=!sitsOpen;render();}
 function btn(v,label,dis,cls){return '<button data-run="'+v+'"'+(cls?' class="'+cls+'"':'')+(dis?' disabled':'')+'>'+label+'</button>';}
 
 /* ---------- input ---------- */
 document.addEventListener('click',function(e){
-  var f=e.target.closest('[data-focus]');if(f){focusId=f.getAttribute('data-focus');render();return;}
+  var f=e.target.closest('[data-focus]');if(f){focusId=f.getAttribute('data-focus');talking=false;render();return;}
+  var s=e.target.closest('[data-say]');if(s){chooseSay(s.getAttribute('data-say'));return;}
   var w=e.target.closest('[data-walk]');if(w){walkTo(w.getAttribute('data-walk'));return;}
   var r=e.target.closest('[data-run]');if(r){run(r.getAttribute('data-run'));return;}
 });
