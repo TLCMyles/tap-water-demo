@@ -194,6 +194,7 @@
       player: {
         locId: 'apartments', energy: 100, strain: 0, form: null, imprints: [],
         repDistrict: 0, berThreatTales: 0, photos: [], knows: {}, actions: 0,
+        timesSeenShifting: 0,
       },
       _lastConflictScan: 0,
     };
@@ -430,10 +431,13 @@
         const archetype = ({
           food_market: 'Resource / Negotiation', bad_water: 'Investigation / Rescue',
           ber_pressure: 'Diplomacy / Defense', despair: 'Community / Leadership',
+          shapeshifter: 'Identity / Exposure',
         })[c.key] || 'Investigation';
+        // a situation about the player (the block fearing a shapeshifter) is felt at once
+        const selfEvident = c.key === 'shapeshifter';
         w.quests.push({
           id: uid('q'), conflictId: c.id, key: c.key, archetype,
-          title: c.desc, discovered: false, state: 'open', bornTick: w.tick,
+          title: c.desc, discovered: selfEvident, state: 'open', bornTick: w.tick,
         });
       }
     },
@@ -527,19 +531,96 @@
       const ppl = coLocated(w).slice(0, 8).map((p) => `${p.name} (${p.occupation}) — ${describeGoal(p)}${p.persistent ? '' : ''}`);
       return { ok: true, free: true, people: ppl, district: Object.assign({}, w.district) };
     },
-    talk(w, id) {
+    talk(w, id, topic) {
       const p = w.byId[id]; if (!p || p.locId !== w.player.locId) return { ok: false, msg: 'they are not here' };
-      p.trustTales = clamp(p.trustTales + 8, -100, 100);
-      w.player.repDistrict = clamp(w.player.repDistrict + 1, -100, 100);
-      // learn what they know (a fact)
-      const fids = Object.keys(p.knows);
-      let learned = '';
-      if (fids.length) { const f = w.facts.find((x) => x.id === w.rng.pick(fids)); if (f) { w.player.knows[f.id] = p.knows[f.id]; learned = ` They mention: “${f.payload}.”`; } }
-      discoverQuestsFor(w, p);
+      topic = topic || 'them';
+      // --- recognition while disguised (Identity Bible: wearing the wrong face) ---
+      let passNote = '';
+      if (w.player.form) {
+        const know = knowsPerson(p, w.player.form, w); const form = w.byId[w.player.form];
+        if (know === 3) {
+          // talking to someone while wearing THEIR face
+          p.fear = clamp(p.fear + 45); p.stress = clamp(p.stress + 25); p.trustTales = clamp(p.trustTales - 45, -100, 100);
+          w.player.berThreatTales = clamp(w.player.berThreatTales + 15); w.district.morale = clamp(w.district.morale - 3);
+          addFact(w, { payload: `${p.name} met someone wearing their own face`, truth: true, virality: 78, confidence: 72 }, [p.id].concat(sampleKnowers(w, 0.03)));
+          log(w, `${p.name} came face to face with their own stolen face.`, 'fear');
+          ensureShapeshifterConflict(w);
+          w.player.actions++; step(w, 1);
+          return { ok: true, recognized: 'self', msg: `You speak to ${p.name} while wearing ${p.name}'s face. They go white — they are staring at themselves. Whatever trust there was is gone, and they will tell everyone.` };
+        }
+        if (know === 2) {
+          const detect = w.rng.chance(0.28 + (p.personality.caution || 0.5) * 0.4 + w.player.strain / 170);
+          if (detect) {
+            p.fear = clamp(p.fear + 20); p.trustTales = clamp(p.trustTales - 20, -100, 100);
+            w.player.berThreatTales = clamp(w.player.berThreatTales + 6);
+            addFact(w, { payload: `${form.name} hasn’t been acting like themselves`, truth: true, virality: 55, confidence: 50 }, [p.id]);
+            log(w, `${p.name} senses something wrong about “${form.name}.”`, 'fear');
+            w.player.actions++; step(w, 1);
+            return { ok: true, recognized: 'suspicious', msg: `You approach ${p.name} wearing ${form.name}'s face. They know ${form.name} well — and something in you is off. Their eyes narrow; you are not quite passing.` };
+          }
+          w.player.repDistrict = clamp(w.player.repDistrict + 1, -100, 100);
+          passNote = ` They take you for ${form.name} and speak to you as such.`;
+        } else if (form) {
+          passNote = ` To ${p.name}, a stranger, you are just ${form.name}; the face holds.`;
+        }
+      }
+      // --- conversation by topic ---
+      let body = '', extra = '';
+      if (topic === 'block') {
+        p.trustTales = clamp(p.trustTales + 3, -100, 100);
+        const fids = Object.keys(p.knows);
+        if (fids.length) { const f = w.facts.find((x) => x.id === w.rng.pick(fids)); if (f) { w.player.knows[f.id] = p.knows[f.id]; body = ` They tell you what’s going around: “${f.payload}.”`; } }
+        else body = ' They shrug — nothing they can put a finger on.';
+      } else if (topic === 'situation') {
+        discoverQuestsFor(w, p);
+        const q = w.quests.find((x) => x.discovered && x.state === 'open');
+        if (q) { q.progress = (q.progress || 0) + 1; body = ` You press about the trouble on the block; ${p.name} fills in a piece of it.`; }
+        else body = ' You ask what’s wrong on the block, but they claim not to know.';
+        p.trustTales = clamp(p.trustTales + 4, -100, 100);
+      } else { // 'them'
+        p.trustTales = clamp(p.trustTales + 8, -100, 100);
+        w.player.repDistrict = clamp(w.player.repDistrict + 1, -100, 100);
+        const fids = Object.keys(p.knows);
+        if (fids.length) { const f = w.facts.find((x) => x.id === w.rng.pick(fids)); if (f) { w.player.knows[f.id] = p.knows[f.id]; body = ` They mention: “${f.payload}.”`; } }
+        discoverQuestsFor(w, p);
+        if (p.hidden && p.trustTales > 30) extra = ` ${p.name} lowers their voice — they trust you with something: they are Changed, and they’ve been hiding it.`;
+      }
       step(w, 1);
-      let extra = '';
-      if (p.hidden && p.trustTales > 30) { extra = ` ${p.name} lowers their voice — they trust you with something (they are Changed).`; }
-      return { ok: true, msg: `You talk with ${p.name}. Trust grows.${learned}${extra}` };
+      return { ok: true, msg: `You talk with ${p.name}.${passNote}${body}${extra}` };
+    },
+    fight(w, id) {
+      const p = id ? w.byId[id] : null;
+      if (p && p.locId !== w.player.locId) return { ok: false, msg: 'they are not here' };
+      const d = w.district, seers = witnessesHere(w, p ? p.id : null);
+      d.crime = clamp(d.crime + 8); d.cohesion = clamp(d.cohesion - 6); d.morale = clamp(d.morale - 4); d.berThreat = clamp(d.berThreat + 8);
+      w.player.repDistrict = clamp(w.player.repDistrict - 12, -100, 100);
+      w.player.berThreatTales = clamp(w.player.berThreatTales + 12);
+      w.player.energy = clamp(w.player.energy - 15);
+      for (const s of seers) { s.fear = clamp(s.fear + 18); s.trustTales = clamp(s.trustTales - 12, -100, 100); pmem(s, w, 'saw violence on the block'); }
+      addFact(w, { payload: 'there was violence on the block', truth: true, virality: 60, confidence: 55 }, seers.map((s) => s.id));
+      let msg;
+      if (p) {
+        p.fear = clamp(p.fear + 40); p.stress = clamp(p.stress + 30); p.trustTales = clamp(p.trustTales - 40, -100, 100); pmem(p, w, 'was attacked by Tales');
+        log(w, `Violence: Tales confronts ${p.name}. The block sees it.`, 'crime');
+        msg = `You get physical with ${p.name}. You can usually end it — and you do — but everyone watching flinches, your standing drops, and BER takes note. Force works, and costs more than it solves.`;
+        if (p.role === 'crime_boss') { d.food = clamp(d.food + 5); msg += ` The crew eases off the market for now — bought with fear, not trust.`; }
+      } else {
+        log(w, `Tales lashes out; the street recoils.`, 'crime');
+        msg = `You brace for a fight, but there’s no one here to fight — only the street, recoiling at the readiness in you.`;
+      }
+      w.player.actions++; step(w, 1);
+      return { ok: true, msg };
+    },
+    investigate(w) {
+      const l = here(w), peopleHere = coLocated(w); let learned = '';
+      for (const q of peopleHere) discoverQuestsFor(w, q);
+      discoverByPlace(w, w.player.locId);
+      const holder = peopleHere.find((p) => Object.keys(p.knows).length);
+      if (holder) { const fid = w.rng.pick(Object.keys(holder.knows)); const f = w.facts.find((x) => x.id === fid); if (f) { w.player.knows[f.id] = holder.knows[fid]; learned = ` You overhear: “${f.payload}.”`; } }
+      const q = w.quests.find((x) => x.discovered && x.state === 'open' && questPlace(x.key) === w.player.locId);
+      if (q) q.progress = (q.progress || 0) + 1;
+      w.player.actions++; step(w, 1);
+      return { ok: true, msg: `You dig into what’s happening around the ${l.name}, watching who talks to whom.${learned}` };
     },
     photograph(w, subjectId) {
       const p = subjectId ? w.byId[subjectId] : null;
@@ -563,17 +644,35 @@
       w.player.berThreatTales = clamp(w.player.berThreatTales + 8);   // visible power use
       let gain = 'their face, skills, and memories';
       if (p.ability === 'sense_contamination') gain = 'their hidden ability to sense bad water';
-      log(w, `You copy ${p.name}. A new Imprint takes root (${gain}). Someone may have seen.`, 'mimicry');
+      // the person you touch always notices; so does anyone watching (Identity Bible)
+      const wit = reactToShift(w, 'copy', p.name);
+      p.fear = clamp(p.fear + 35); p.trustTales = clamp(p.trustTales - 40, -100, 100);
+      pmem(p, w, 'felt Tales take a copy of them');
+      log(w, `You copy ${p.name}. A new Imprint takes root (${gain}).${wit.seen ? ' It was seen.' : ' No one else was near.'}`, 'mimicry');
       w.player.actions++; step(w, 1);
-      return { ok: true, msg: `Skin contact — you copy ${p.name}. You gain ${gain}. Identity strain rises.` };
+      let msg = `Skin contact — you copy ${p.name}. You gain ${gain}. Identity strain rises.`;
+      msg += wit.seen ? ` ${wit.text} ${p.name} recoils from your hand.` : ' No one else is near; the theft goes unseen.';
+      return { ok: true, msg, witnessed: wit.seen };
     },
     wear(w, id) {
       if (!w.player.imprints.includes(id)) return { ok: false, msg: 'you have no imprint of them' };
-      w.player.form = id; const p = w.byId[id];
+      const already = w.player.form; w.player.form = id; const p = w.byId[id];
       w.player.strain = clamp(w.player.strain + 3);
-      return { ok: true, msg: `You take on ${p.name}'s form. You now wear their local reputation.` };
+      const wit = reactToShift(w, 'wear', p.name);   // turning into someone in public is alarming
+      let msg = `You take on ${p.name}'s form; among strangers you now pass as them, and wear their standing.`;
+      if (wit.seen) msg += ` But ${wit.text} They watched you become ${p.name}.`;
+      else msg += ' No one is around to see the change.';
+      if (already) w.player.actions++;
+      return { ok: true, msg, witnessed: wit.seen };
     },
-    revert(w) { w.player.form = null; return { ok: true, msg: 'You return to yourself — the hardest form to wear.' }; },
+    revert(w) {
+      const had = w.player.form; w.player.form = null;
+      if (!had) return { ok: true, msg: 'You are already yourself.' };
+      const wit = reactToShift(w, 'revert', 'themselves');
+      let msg = 'You let the borrowed face go and return to your own — the hardest form to wear.';
+      if (wit.seen) msg += ` ${wit.text} One moment you were someone; the next, someone else.`;
+      return { ok: true, msg, witnessed: wit.seen };
+    },
     help(w) {
       // contribute at the current location: garden/market/council/church boost the block
       const l = here(w); let msg = 'Not much to do here.';
@@ -616,6 +715,80 @@
     }
   }
 
+  /* =====================================================================
+   * IDENTITY CONSEQUENCES (Identity & Metamorphosis Bible)
+   *   Being seen transform, and wearing the wrong face, must MATTER.
+   * =================================================================== */
+  function witnessesHere(w, exceptId) {
+    return coLocated(w).filter((p) => p && p.id !== exceptId);
+  }
+  // Does 'target' know the person whose face is being worn? 3=it's them, 2=knows well, 1=acquainted, 0=stranger
+  function knowsPerson(target, formId, w) {
+    if (!formId) return 0;
+    const form = w.byId[formId]; if (!form) return 0;
+    if (target.id === formId) return 3;
+    if (form.persistent) return 2;                 // everyone knows the notable locals
+    const rel = target.relationships[formId];
+    return rel && rel.trust > 20 ? 2 : (rel ? 1 : 0);
+  }
+  function ensureShapeshifterConflict(w) {
+    if (w.conflicts.some((c) => c.active && c.key === 'shapeshifter')) return;
+    spawnConflict(w, {
+      key: 'shapeshifter', cause: 'fear+identity',
+      parties: ['a frightened block', 'the thing wearing faces'],
+      contested: 'whether anyone can be trusted to be who they say', scale: 'neighborhood',
+      desc: 'People have seen someone wear another’s face; fear of impostors is spreading.',
+    });
+  }
+  // Called when the player transforms (copy / wear / revert) with people present.
+  function reactToShift(w, kind, formName) {
+    const seers = witnessesHere(w);
+    if (!seers.length) return { seen: false, agents: 0, text: '' };
+    const d = w.district; let agents = 0;
+    for (const p of seers) {
+      const shock = 20 + Math.round((p.personality.caution || 0.5) * 22);
+      p.fear = clamp(p.fear + shock); p.stress = clamp(p.stress + 14); p.hope = clamp(p.hope - 8);
+      p.trustTales = clamp(p.trustTales - 30, -100, 100);
+      pmem(p, w, `saw someone ${kind === 'copy' ? 'take another person’s face by touch' : 'change into ' + (formName || 'someone else')}`);
+      if (p.role === 'ber_agent') agents++;
+    }
+    d.morale = clamp(d.morale - 4); d.cohesion = clamp(d.cohesion - 3); d.crime = clamp(d.crime + 2);
+    d.berThreat = clamp(d.berThreat + 4 + agents * 12);
+    w.player.repDistrict = clamp(w.player.repDistrict - Math.min(12, 2 + seers.length), -100, 100);
+    w.player.berThreatTales = clamp(w.player.berThreatTales + 10 + agents * 25);
+    w.player.timesSeenShifting = (w.player.timesSeenShifting || 0) + 1;
+    addFact(w, { payload: 'someone on these blocks can wear other people’s faces', truth: true, virality: 70, confidence: 60 }, seers.map((p) => p.id));
+    log(w, `${seers.length} ${seers.length === 1 ? 'person' : 'people'} saw the change. Fear ripples out.${agents ? ' A BER agent was watching.' : ''}`, 'fear');
+    if (w.player.timesSeenShifting >= 2 || agents) ensureShapeshifterConflict(w);
+    const crowd = seers.length === 1 ? seers[0].name + ' sees it happen' : seers.length <= 5 ? seers.length + ' people see it happen' : 'a crowd sees it happen';
+    const text = agents ? 'A BER agent sees it happen — and does not look away.' : crowd + '; the fear is immediate.';
+    return { seen: true, agents: agents, text: text };
+  }
+  // where a situation is best pursued (for place-based discovery + hints)
+  function questPlace(key) {
+    return ({ food_market: 'market', bad_water: 'safehouse', ber_pressure: 'checkpoint', despair: 'council', shapeshifter: 'apartments' })[key] || null;
+  }
+  function discoverByPlace(w, locId) {
+    for (const q of w.quests) {
+      if (q.discovered || q.state !== 'open') continue;
+      const c = w.conflicts.find((x) => x.id === q.conflictId); if (!c) continue;
+      if (questPlace(c.key) === locId) { q.discovered = true; log(w, `Being here, you piece together a situation: ${q.title}.`, 'quest'); }
+    }
+  }
+  // suggested next step for a discovered situation (Quest Bible: guidance, not markers)
+  function nextStep(w, q) {
+    const c = w.conflicts.find((x) => x.id === q.conflictId);
+    const prog = q.progress || 0;
+    const map = {
+      food_market: prog < 1 ? 'Investigate at the Corner Market to learn who’s taking a cut of the food.' : 'Now you know the shape of it: confront the crew (Fight), help restock the market (Help), or expose the shakedown with a Photograph.',
+      bad_water: prog < 1 ? 'Ask around the Garden or Safe House about who always seems to know which water is safe.' : 'Find the hidden Changed, earn their trust, then copy their gift or help them steer people off the bad water.',
+      ber_pressure: prog < 1 ? 'Talk to a BER agent at the Checkpoint, or the organizer at the Council, to learn what’s driving it.' : 'Lower the block’s disorder by Helping, or document the checkpoint with a Photograph to change the story.',
+      despair: 'Show up where people gather — Help at the Council, Church, or Garden to lift morale.',
+      shapeshifter: 'Fear of you is spreading. Stop transforming where people can see, rebuild trust (Talk, Help) — or lie low until it cools.',
+    };
+    return map[c ? c.key : q.key] || 'Look around and talk to people to learn more.';
+  }
+
   /* --------------------------------------------------- save / load (L10) --*/
   function serialize(w) {
     // Sets/functions removed; RNG state re-seeded from seed + tick for determinism note.
@@ -640,7 +813,7 @@
   }
 
   /* ------------------------------------------------------------- exports --*/
-  const API = { createWorld, tick, step, Player, serialize, deserialize, CFG, LOC_DEFS, coLocated, here };
+  const API = { createWorld, tick, step, Player, serialize, deserialize, CFG, LOC_DEFS, coLocated, here, nextStep };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.TapWater = API;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
